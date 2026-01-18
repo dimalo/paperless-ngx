@@ -958,6 +958,125 @@ they use underscores instead of dashes.
     {"deskew": true, "optimize": 3, "unpaper_args": "--pre-rotate 90"}
     ```
 
+#### [`PAPERLESS_OCR_ENGINE=<engine>`](#PAPERLESS_OCR_ENGINE) {#PAPERLESS_OCR_ENGINE}
+
+: Specify the OCR engine to use for document processing. Available options are:
+
+    - `tesseract` (default): Use the built-in Tesseract OCR engine.
+    - `docling`: Use the Docling OCR backend.
+    - `ollama`: Use the Ollama OCR backend.
+
+    Defaults to `tesseract`.
+
+### Docling OCR Backend
+
+Paperless can use Docling as an alternative OCR backend via the docling-serve API service.
+
+#### Setup
+
+1. Run docling-serve in Docker:
+
+    ```bash
+    docker run --name docling-serve -p 5001:5001 ds4sd/docling-serve:latest
+    ```
+
+2. Configure the following environment variables.
+
+#### [`PAPERLESS_DOCLING_ENDPOINT=<url>`](#PAPERLESS_DOCLING_ENDPOINT) {#PAPERLESS_DOCLING_ENDPOINT}
+
+: The URL of the docling-serve instance.
+
+    Defaults to `http://localhost:5001`.
+
+#### [`PAPERLESS_DOCLING_TIMEOUT=<int>`](#PAPERLESS_DOCLING_TIMEOUT) {#PAPERLESS_DOCLING_TIMEOUT}
+
+: Request timeout in seconds.
+
+    Defaults to 30.
+
+#### [`PAPERLESS_DOCLING_FORCE_OCR=<bool>`](#PAPERLESS_DOCLING_FORCE_OCR) {#PAPERLESS_DOCLING_FORCE_OCR}
+
+: Force OCR even on documents with existing text.
+
+    Defaults to false.
+
+#### [`PAPERLESS_DOCLING_LANGUAGE=<lang>`](#PAPERLESS_DOCLING_LANGUAGE) {#PAPERLESS_DOCLING_LANGUAGE}
+
+: OCR language for text recognition.
+
+    Defaults to "eng".
+
+#### Usage
+
+Set `PAPERLESS_OCR_ENGINE=docling` to use this backend.
+
+#### Notes
+
+- API-based backend.
+- Supports PDF and image MIME types.
+- Performance considerations for large files (>10MB uses async polling).
+
+### Ollama OCR Backend
+
+Paperless can use Ollama as an OCR backend using the deepseek-ocr model.
+
+#### Setup
+
+1. Install Ollama:
+
+    ```bash
+    # On Linux/macOS
+    curl -fsSL https://ollama.ai/install.sh | sh
+    ```
+
+2. Pull the deepseek-ocr model:
+
+    ```bash
+    ollama pull deepseek-ocr
+    ```
+
+3. Start Ollama service:
+
+    ```bash
+    ollama serve
+    ```
+
+4. Configure the following environment variables.
+
+#### [`PAPERLESS_OLLAMA_ENDPOINT=<url>`](#PAPERLESS_OLLAMA_ENDPOINT) {#PAPERLESS_OLLAMA_ENDPOINT}
+
+: The URL of the Ollama instance.
+
+    Defaults to `http://localhost:11434`.
+
+#### [`PAPERLESS_OLLAMA_MODEL=<model>`](#PAPERLESS_OLLAMA_MODEL) {#PAPERLESS_OLLAMA_MODEL}
+
+: The model name to use.
+
+    Defaults to `deepseek-ocr`.
+
+#### [`PAPERLESS_OLLAMA_TIMEOUT=<int>`](#PAPERLESS_OLLAMA_TIMEOUT) {#PAPERLESS_OLLAMA_TIMEOUT}
+
+: Request timeout in seconds.
+
+    Defaults to 30.
+
+#### [`PAPERLESS_OLLAMA_PROMPT_TEMPLATE=<template>`](#PAPERLESS_OLLAMA_PROMPT_TEMPLATE) {#PAPERLESS_OLLAMA_PROMPT_TEMPLATE}
+
+: Custom prompt template.
+
+    Defaults to "".
+
+#### Usage
+
+Set `PAPERLESS_OCR_ENGINE=ollama` to use this backend.
+
+#### Notes
+
+- API-based backend.
+- Supports image and PDF MIME types (PDFs converted to images per page).
+- Performance considerations for large files.
+
 ## Software tweaks {#software_tweaks}
 
 #### [`PAPERLESS_TASK_WORKERS=<num>`](#PAPERLESS_TASK_WORKERS) {#PAPERLESS_TASK_WORKERS}
