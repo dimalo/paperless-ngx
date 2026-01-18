@@ -105,15 +105,27 @@ class OcrConfig(OutputTypeConfig):
         self.user_args = user_args
 
         self.sharpen = (
-            app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
+            app_config.ocr_sharpen
+            if app_config.ocr_sharpen is not None
+            else settings.OCR_SHARPEN
         )
         self.custom_alignment = (
-            app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
+            app_config.ocr_custom_alignment
+            if app_config.ocr_custom_alignment is not None
+            else settings.OCR_CUSTOM_ALIGNMENT
         )
-        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
-        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
-        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
-        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        self.sharpen_radius = (
+            app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        )
+        self.sharpen_percent = (
+            app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        )
+        self.sharpen_threshold = (
+            app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        )
+        self.alignment_threshold = (
+            app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        )
 
 
 @dataclasses.dataclass
@@ -232,6 +244,12 @@ class DoclingConfig(BaseConfig):
     language: str = dataclasses.field(init=False)
     endpoint: str = dataclasses.field(init=False)
     timeout: int = dataclasses.field(init=False)
+    sharpen: bool = dataclasses.field(init=False)
+    custom_alignment: bool = dataclasses.field(init=False)
+    sharpen_radius: float = dataclasses.field(init=False)
+    sharpen_percent: float = dataclasses.field(init=False)
+    sharpen_threshold: float = dataclasses.field(init=False)
+    alignment_threshold: float = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -244,6 +262,12 @@ class DoclingConfig(BaseConfig):
         self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
         self.endpoint = app_config.docling_endpoint or settings.DOCLING_ENDPOINT
         self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
+        self.sharpen = app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
+        self.custom_alignment = app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
+        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
 
 
 @dataclasses.dataclass
@@ -256,6 +280,12 @@ class OllamaConfig(BaseConfig):
     model: str = dataclasses.field(init=False)
     prompt_template: str = dataclasses.field(init=False)
     timeout: int = dataclasses.field(init=False)
+    sharpen: bool = dataclasses.field(init=False)
+    custom_alignment: bool = dataclasses.field(init=False)
+    sharpen_radius: float = dataclasses.field(init=False)
+    sharpen_percent: float = dataclasses.field(init=False)
+    sharpen_threshold: float = dataclasses.field(init=False)
+    alignment_threshold: float = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -266,3 +296,9 @@ class OllamaConfig(BaseConfig):
             app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE
         )
         self.timeout = app_config.ollama_timeout or settings.OLLAMA_TIMEOUT
+        self.sharpen = app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
+        self.custom_alignment = app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
+        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD

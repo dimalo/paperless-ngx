@@ -115,7 +115,7 @@ def get_supported_file_extensions() -> set[str]:
 
 def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | None:
     """
-    Returns the best parser (by weight) for the given mimetype or
+    Returns the best parser (by weight or OCR engine preference) for the given mimetype or
     None if no parser exists
     """
 
@@ -131,9 +131,21 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
     if not options:
         return None
 
-    best_parser = sorted(options, key=lambda _: _["weight"], reverse=True)[0]
+    def get_priority(declaration):
+        parser_class = declaration["parser"]
+        ocr_engine = getattr(settings, "PAPERLESS_OCR_ENGINE", "tesseract")
+        if (
+            ocr_engine == "docling" and parser_class.__name__ == "DoclingDocumentParser"
+        ) or (
+            ocr_engine == "ollama" and parser_class.__name__ == "OllamaDocumentParser"
+        ):
+            return 100
+        else:
+            return declaration["weight"]
 
-    # Return the parser with the highest weight.
+    best_parser = sorted(options, key=get_priority, reverse=True)[0]
+
+    # Return the parser with the highest priority.
     return best_parser["parser"]
 
 

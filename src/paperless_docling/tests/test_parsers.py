@@ -89,7 +89,7 @@ class TestDoclingParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
     def test_parse_http_error(self, mock_client):
         """Test parsing when HTTP request fails."""
         mock_client.return_value.__enter__.return_value.post.side_effect = Exception(
-            "HTTP Error"
+            "HTTP Error",
         )
 
         parser = DoclingDocumentParser("test_group")

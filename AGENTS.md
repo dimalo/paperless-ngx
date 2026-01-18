@@ -161,6 +161,55 @@ Paperless-ngx supports Docling as an OCR backend via docling-serve API service.
 - Supports PDF and image MIME types
 - Extracts `text_content` from JSON response
 
+#### Ollama Backend
+Paperless-ngx supports Ollama as an OCR backend using the deepseek-ocr model.
+
+**Setup:**
+1. Install Ollama:
+   ```bash
+   # On Linux/macOS
+   curl -fsSL https://ollama.ai/install.sh | sh
+
+   # Or download from https://ollama.ai/download
+   ```
+2. Pull the deepseek-ocr model:
+   ```bash
+   ollama pull deepseek-ocr
+   ```
+3. Start Ollama service:
+   ```bash
+   ollama serve
+   ```
+4. Configure environment variables:
+   ```bash
+   export PAPERLESS_OCR_ENGINE=ollama
+   export PAPERLESS_OLLAMA_ENDPOINT=http://localhost:11434
+   export PAPERLESS_OLLAMA_MODEL=deepseek-ocr
+   export PAPERLESS_OLLAMA_TIMEOUT=30
+   export PAPERLESS_OLLAMA_PROMPT_TEMPLATE=""
+   ```
+
+**Settings:**
+- `PAPERLESS_OLLAMA_ENDPOINT`: URL of the Ollama instance (default: http://localhost:11434)
+- `PAPERLESS_OLLAMA_MODEL`: Model name (default: deepseek-ocr)
+- `PAPERLESS_OLLAMA_TIMEOUT`: Request timeout in seconds (default: 30)
+- `PAPERLESS_OLLAMA_PROMPT_TEMPLATE`: Custom prompt template (default: "")
+
+**API Details:**
+- Uses `POST /api/chat` endpoint
+- Sends base64 encoded images in messages with user content
+- Supports image and PDF MIME types (PDFs converted to images per page)
+- Extracts `content` from message response
+
+#### Parser Selection Logic
+The `get_parser_class_for_mime_type()` function in `src/documents/parsers.py` selects the appropriate parser based on the `PAPERLESS_OCR_ENGINE` setting:
+
+- If `PAPERLESS_OCR_ENGINE` is set to `docling`, prioritizes `DoclingDocumentParser`.
+- If `PAPERLESS_OCR_ENGINE` is set to `ollama`, prioritizes `OllamaDocumentParser`.
+- Otherwise, falls back to the parser with the highest weight.
+
+This ensures that when a specific OCR backend is configured, it is used for supported MIME types.
+
 ## Code Style Guidelines
 
 ### Python Code Style

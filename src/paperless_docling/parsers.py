@@ -6,7 +6,7 @@ import httpx
 from django.conf import settings
 
 from documents.parsers import ParseError
-from documents.parsers import RasterisedDocumentParser
+from paperless_tesseract.parsers import RasterisedDocumentParser
 from documents.parsers import make_thumbnail_from_pdf
 from paperless.config import DoclingConfig
 
@@ -113,11 +113,15 @@ class DoclingDocumentParser(RasterisedDocumentParser):
         Parse the document using Docling-serve
         """
         try:
+            processed_path = document_path
+            if self.is_image(mime_type):
+                processed_path = self.preprocess_image(document_path)
+
             # For large files, use async endpoint
-            if document_path.stat().st_size > 10 * 1024 * 1024:  # 10MB
-                result = asyncio.run(self._convert_file_async(document_path))
+            if processed_path.stat().st_size > 10 * 1024 * 1024:  # 10MB
+                result = asyncio.run(self._convert_file_async(processed_path))
             else:
-                result = self._convert_file_sync(document_path)
+                result = self._convert_file_sync(processed_path)
 
             # Extract text content
             if "document" in result and "text_content" in result["document"]:

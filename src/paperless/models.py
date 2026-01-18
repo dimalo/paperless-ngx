@@ -342,7 +342,11 @@ class ApplicationConfiguration(AbstractSingletonModel):
         null=True,
         blank=True,
         max_length=16,
-        choices=[("tesseract", _("Tesseract")), ("docling", _("Docling")), ("ollama", _("Ollama"))],
+        choices=[
+            ("tesseract", _("Tesseract")),
+            ("docling", _("Docling")),
+            ("ollama", _("Ollama")),
+        ],
         default="tesseract",
     )
 

@@ -225,6 +225,7 @@ def ocr_dependencies_check(app_configs, **kwargs):
     if settings.OCR_ENGINE == "ollama":
         try:
             import httpx
+
             response = httpx.get(f"{settings.OLLAMA_ENDPOINT}/api/version", timeout=5)
             if response.status_code != 200:
                 msgs.append(
@@ -236,6 +237,7 @@ def ocr_dependencies_check(app_configs, **kwargs):
             )
     elif settings.OCR_ENGINE == "docling":
         import importlib.util
+
         if importlib.util.find_spec("docling") is None:
             msgs.append(
                 Error("Docling is not installed but OCR_ENGINE is set to docling"),
