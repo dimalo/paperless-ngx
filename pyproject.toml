@@ -97,6 +97,10 @@ optional-dependencies.postgres = [
 optional-dependencies.webserver = [
   "granian[uvloop]~=2.5.1",
 ]
+optional-dependencies.docling = [
+  "docling",
+  "opencv-python",
+]
 
 [dependency-groups]
 

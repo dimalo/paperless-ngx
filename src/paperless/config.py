@@ -55,6 +55,12 @@ class OcrConfig(OutputTypeConfig):
     max_image_pixel: float | None = dataclasses.field(init=False)
     color_conversion_strategy: str = dataclasses.field(init=False)
     user_args: dict[str, str] | None = dataclasses.field(init=False)
+    sharpen: bool = dataclasses.field(init=False)
+    custom_alignment: bool = dataclasses.field(init=False)
+    sharpen_radius: float = dataclasses.field(init=False)
+    sharpen_percent: float = dataclasses.field(init=False)
+    sharpen_threshold: float = dataclasses.field(init=False)
+    alignment_threshold: float = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -97,6 +103,17 @@ class OcrConfig(OutputTypeConfig):
             except json.JSONDecodeError:
                 user_args = {}
         self.user_args = user_args
+
+        self.sharpen = (
+            app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
+        )
+        self.custom_alignment = (
+            app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
+        )
+        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
 
 
 @dataclasses.dataclass
@@ -203,3 +220,45 @@ class AIConfig(BaseConfig):
     @property
     def llm_index_enabled(self) -> bool:
         return bool(self.ai_enabled and self.llm_embedding_backend)
+
+
+@dataclasses.dataclass
+class DoclingConfig(BaseConfig):
+    """
+    Specific settings for the Docling OCR parser
+    """
+
+    force_ocr: bool = dataclasses.field(init=False)
+    language: str = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        app_config = self._get_config_instance()
+
+        self.force_ocr = (
+            app_config.docling_force_ocr
+            if app_config.docling_force_ocr is not None
+            else settings.DOCLING_FORCE_OCR
+        )
+        self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
+
+
+@dataclasses.dataclass
+class OllamaConfig(BaseConfig):
+    """
+    Specific settings for the Ollama OCR parser
+    """
+
+    endpoint: str = dataclasses.field(init=False)
+    model: str = dataclasses.field(init=False)
+    prompt_template: str = dataclasses.field(init=False)
+    timeout: int = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        app_config = self._get_config_instance()
+
+        self.endpoint = app_config.ollama_endpoint or settings.OLLAMA_ENDPOINT
+        self.model = app_config.ollama_model or settings.OLLAMA_MODEL
+        self.prompt_template = (
+            app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE
+        )
+        self.timeout = app_config.ollama_timeout or settings.OLLAMA_TIMEOUT

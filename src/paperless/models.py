@@ -333,6 +333,91 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=256,
     )
 
+    """
+    OCR engine settings
+    """
+
+    ocr_engine = models.CharField(
+        verbose_name=_("Sets the OCR engine"),
+        null=True,
+        blank=True,
+        max_length=16,
+        choices=[("tesseract", _("Tesseract")), ("docling", _("Docling")), ("ollama", _("Ollama"))],
+        default="tesseract",
+    )
+
+    ollama_endpoint = models.CharField(
+        verbose_name=_("Ollama endpoint"),
+        null=True,
+        blank=True,
+        max_length=256,
+    )
+
+    ollama_model = models.CharField(
+        verbose_name=_("Ollama model"),
+        null=True,
+        blank=True,
+        max_length=128,
+    )
+
+    ollama_prompt_template = models.TextField(
+        verbose_name=_("Ollama prompt template"),
+        null=True,
+        blank=True,
+    )
+
+    ollama_timeout = models.PositiveIntegerField(
+        verbose_name=_("Ollama timeout"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    docling_force_ocr = models.BooleanField(
+        verbose_name=_("Docling force OCR"),
+        null=True,
+    )
+
+    docling_language = models.CharField(
+        verbose_name=_("Docling language"),
+        null=True,
+        blank=True,
+        max_length=32,
+    )
+
+    ocr_sharpen = models.BooleanField(
+        verbose_name=_("OCR sharpen"),
+        null=True,
+    )
+
+    ocr_custom_alignment = models.BooleanField(
+        verbose_name=_("OCR custom alignment"),
+        null=True,
+    )
+
+    ocr_sharpen_radius = models.FloatField(
+        verbose_name=_("OCR sharpen radius"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_sharpen_percent = models.FloatField(
+        verbose_name=_("OCR sharpen percent"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_sharpen_threshold = models.FloatField(
+        verbose_name=_("OCR sharpen threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_alignment_threshold = models.FloatField(
+        verbose_name=_("OCR alignment threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
     class Meta:
         verbose_name = _("paperless application settings")
 
