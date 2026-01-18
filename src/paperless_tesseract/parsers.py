@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import cv2
 from django.conf import settings
 from PIL import Image
 
@@ -150,6 +151,62 @@ class RasterisedDocumentParser(DocumentParser):
         except Exception as e:
             self.log.warning(f"Error while calculating DPI for image {image}: {e}")
             return None
+
+    def sharpen_image_pillow(self, image_path: Path) -> Path:
+        """
+        Apply unsharp mask to sharpen the image using Pillow.
+        """
+        sharpened_path = Path(self.tempdir) / "sharpened_image"
+        with Image.open(image_path) as img:
+            # Apply UnsharpMask filter
+            sharpened = img.filter(
+                Image.Filter.UnsharpMask(
+                    radius=self.settings.sharpen_radius,
+                    percent=self.settings.sharpen_percent,
+                    threshold=self.settings.sharpen_threshold,
+                ),
+            )
+            sharpened.save(sharpened_path, format=img.format)
+        return sharpened_path
+
+    def deskew_image_opencv(self, image_path: Path) -> Path:
+        """
+        Deskew the image using OpenCV Hough transform.
+        """
+        deskewed_path = Path(self.tempdir) / "deskewed_image"
+        img = cv2.imread(str(image_path))
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.bitwise_not(gray)
+        thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        coords = cv2.findNonZero(thresh)
+        angle = cv2.minAreaRect(coords)[-1]
+        if angle < -45:
+            angle = -(90 + angle)
+        else:
+            angle = -angle
+        (h, w) = img.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        rotated = cv2.warpAffine(
+            img,
+            M,
+            (w, h),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        cv2.imwrite(str(deskewed_path), rotated)
+        return deskewed_path
+
+    def preprocess_image(self, image_path: Path) -> Path:
+        """
+        Conditionally apply sharpening and deskewing, saving to a temp file.
+        """
+        processed_path = image_path
+        if self.settings.sharpen:
+            processed_path = self.sharpen_image_pillow(processed_path)
+        if self.settings.custom_alignment:
+            processed_path = self.deskew_image_opencv(processed_path)
+        return processed_path
 
     def extract_text(
         self,
