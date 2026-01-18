@@ -230,6 +230,8 @@ class DoclingConfig(BaseConfig):
 
     force_ocr: bool = dataclasses.field(init=False)
     language: str = dataclasses.field(init=False)
+    endpoint: str = dataclasses.field(init=False)
+    timeout: int = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -240,6 +242,8 @@ class DoclingConfig(BaseConfig):
             else settings.DOCLING_FORCE_OCR
         )
         self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
+        self.endpoint = app_config.docling_endpoint or settings.DOCLING_ENDPOINT
+        self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
 
 
 @dataclasses.dataclass

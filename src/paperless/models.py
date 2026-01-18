@@ -384,6 +384,19 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=32,
     )
 
+    docling_endpoint = models.CharField(
+        verbose_name=_("Docling endpoint"),
+        null=True,
+        blank=True,
+        max_length=256,
+    )
+
+    docling_timeout = models.PositiveIntegerField(
+        verbose_name=_("Docling timeout"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
     ocr_sharpen = models.BooleanField(
         verbose_name=_("OCR sharpen"),
         null=True,
