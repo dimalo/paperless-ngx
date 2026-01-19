@@ -236,7 +236,9 @@ class TestImagePreprocessing(TestCase):
     @patch("paperless_tesseract.parsers.cv2")
     def test_deskew_image_opencv(self, mock_cv2):
         # Mock cv2 functions
-        mock_cv2.imread.return_value = "mock_img"
+        mock_img = mock.Mock()
+        mock_img.shape = (100, 100, 3)
+        mock_cv2.imread.return_value = mock_img
         mock_cv2.cvtColor.return_value = "mock_gray"
         mock_cv2.bitwise_not.return_value = "mock_not"
         mock_cv2.threshold.return_value = ("mock_thresh", "mock_thresh_img")
@@ -249,7 +251,7 @@ class TestImagePreprocessing(TestCase):
         # Test deskew
         image_path = self.parser.tempdir / "test_image.png"
         deskewed_path = self.parser.deskew_image_opencv(image_path)
-        self.assertTrue(deskewed_path.exists())
+        mock_cv2.imwrite.assert_called_once_with(str(deskewed_path), "mock_rotated")
 
     @patch("PIL.Image.open")
     def test_sharpen_image_pillow(self, mock_image_open):
@@ -261,7 +263,7 @@ class TestImagePreprocessing(TestCase):
 
         image_path = self.parser.tempdir / "test_image.png"
         sharpened_path = self.parser.sharpen_image_pillow(image_path)
-        self.assertTrue(sharpened_path.exists())
+        mock_sharpened.save.assert_called_once_with(sharpened_path, format=mock_img.format)
         mock_img.filter.assert_called_once()
 
     def test_preprocess_image_no_processing(self):

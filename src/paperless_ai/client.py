@@ -36,7 +36,7 @@ class AIClient:
         else:
             raise ValueError(f"Unsupported LLM backend: {self.settings.llm_backend}")
 
-    def run_llm_query(self, prompt: str) -> str:
+    def run_llm_query(self, prompt: str) -> dict:
         logger.debug(
             "Running LLM query against %s with model %s",
             self.settings.llm_backend,

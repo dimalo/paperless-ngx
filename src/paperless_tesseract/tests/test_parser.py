@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+import unittest
 import uuid
 from pathlib import Path
 from unittest import mock
@@ -197,6 +198,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_MODE="skip")
     def test_encrypted(self):
         parser = RasterisedDocumentParser(None)
@@ -236,6 +238,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["Please enter your name in here:", "This is a PDF document with a form."],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_image_simple(self):
         parser = RasterisedDocumentParser(None)
 
@@ -245,6 +248,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertContainsStrings(parser.get_text(), ["This is a test document."])
 
+    @unittest.skipIf(shutil.which("convert") is None, "ImageMagick (convert) not available")
     def test_image_simple_alpha(self):
         parser = RasterisedDocumentParser(None)
 
@@ -283,6 +287,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertRaises(ParseError, f)
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_IMAGE_DPI=72, MAX_IMAGE_PIXELS=0)
     def test_image_no_dpi_default(self):
         parser = RasterisedDocumentParser(None)
@@ -296,6 +301,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["this is a test document."],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_multi_page(self):
         parser = RasterisedDocumentParser(None)
         parser.parse(
@@ -334,6 +340,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["page 1", "page 2", "page 3"],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_PAGES=2, OCR_MODE="force")
     def test_multi_page_pages_force(self):
         parser = RasterisedDocumentParser(None)
@@ -347,6 +354,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["page 1", "page 2", "page 3"],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_MODE="skip")
     def test_multi_page_analog_pages_skip(self):
         parser = RasterisedDocumentParser(None)
@@ -360,6 +368,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["page 1", "page 2", "page 3"],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_PAGES=2, OCR_MODE="redo")
     def test_multi_page_analog_pages_redo(self):
         """
@@ -382,6 +391,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         self.assertContainsStrings(parser.get_text().lower(), ["page 1", "page 2"])
         self.assertNotIn("page 3", parser.get_text().lower())
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_PAGES=1, OCR_MODE="force")
     def test_multi_page_analog_pages_force(self):
         """
@@ -591,6 +601,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             ["page 1", "page 2", "page 3"],
         )
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @override_settings(OCR_MODE="skip")
     def test_multi_page_mixed(self):
         """

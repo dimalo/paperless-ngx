@@ -31,6 +31,14 @@ try:
 except ImportError:
     HAS_ZXING_LIB = False
 
+try:
+    import ctypes
+
+    ctypes.CDLL("zbar")
+    HAS_ZBAR_LIB = True
+except OSError:
+    HAS_ZBAR_LIB = False
+
 
 class GetReaderPluginMixin:
     @contextmanager
@@ -47,6 +55,10 @@ class GetReaderPluginMixin:
         reader.cleanup()
 
 
+@pytest.mark.skipif(
+    not HAS_ZBAR_LIB,
+    reason="zbar shared library not available",
+)
 @override_settings(CONSUMER_BARCODE_SCANNER="PYZBAR")
 class TestBarcode(
     DirectoriesMixin,
@@ -570,6 +582,10 @@ class TestBarcode(
             self.assertDictEqual(separator_page_numbers, {0: False})
 
 
+@pytest.mark.skipif(
+    not HAS_ZBAR_LIB,
+    reason="zbar shared library not available",
+)
 @override_settings(CONSUMER_BARCODE_SCANNER="PYZBAR")
 class TestBarcodeNewConsume(
     DirectoriesMixin,
@@ -627,6 +643,10 @@ class TestBarcodeNewConsume(
                 self.assertEqual(overrides, new_doc_overrides)
 
 
+@pytest.mark.skipif(
+    not HAS_ZBAR_LIB,
+    reason="zbar shared library not available",
+)
 class TestAsnBarcode(DirectoriesMixin, SampleDirMixin, GetReaderPluginMixin, TestCase):
     @contextmanager
     def get_reader(self, filepath: Path) -> BarcodePlugin:
@@ -808,6 +828,10 @@ class TestAsnBarcodesZxing(TestAsnBarcode):
     pass
 
 
+@pytest.mark.skipif(
+    not HAS_ZBAR_LIB,
+    reason="zbar shared library not available",
+)
 class TestTagBarcode(DirectoriesMixin, SampleDirMixin, GetReaderPluginMixin, TestCase):
     @contextmanager
     def get_reader(self, filepath: Path) -> BarcodePlugin:

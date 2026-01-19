@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import shutil
+import unittest
 from pathlib import Path
 from unittest import mock
 
@@ -151,6 +152,7 @@ class TestDoubleSided(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         self.assertIsNotFile(self.staging_file)
 
     @override_settings(CONSUMER_COLLATE_DOUBLE_SIDED_TIFF_SUPPORT=True)
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_tiff_upload_enabled(self):
         """
         GIVEN:
@@ -201,6 +203,7 @@ class TestDoubleSided(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         self.consume_file("double-sided-odd.pdf", Path("..") / "quux" / "foo.pdf")
         self.assertIsFile(self.staging_file)
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_only_double_sided_dir_is_handled(self):
         """
         GIVEN:
@@ -240,6 +243,7 @@ class TestDoubleSided(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
                 )
 
     @override_settings(CONSUMER_ENABLE_COLLATE_DOUBLE_SIDED=False)
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_disabled_double_sided_dir_upload(self):
         """
         GIVEN:

@@ -2,6 +2,7 @@ import datetime
 import shutil
 import stat
 import tempfile
+import unittest
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock
@@ -881,6 +882,7 @@ class TestConsumer(
 
 
 @mock.patch("documents.consumer.magic.from_file", fake_magic_from_file)
+@unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
 class TestConsumerCreatedDate(DirectoriesMixin, GetConsumerMixin, TestCase):
     def setUp(self):
         super().setUp()
@@ -1019,6 +1021,7 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
         self.test_file = self.dirs.scratch_dir / "sample.pdf"
         shutil.copy(src, self.test_file)
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @mock.patch("documents.consumer.run_subprocess")
     @override_settings(PRE_CONSUME_SCRIPT=None)
     def test_no_pre_consume_script(self, m):
@@ -1033,6 +1036,7 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
             self.assertRaises(ConsumerError, c.run)
             m.assert_not_called()
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @mock.patch("documents.consumer.run_subprocess")
     def test_pre_consume_script(self, m):
         with tempfile.NamedTemporaryFile() as script:
@@ -1057,6 +1061,7 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
                     }
                     self.assertDictEqual(environment, {**environment, **subset})
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_script_with_output(self):
         """
         GIVEN:

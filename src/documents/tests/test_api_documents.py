@@ -1202,7 +1202,7 @@ class TestDocumentApi(DirectoriesMixin, DocumentConsumeDelayMixin, APITestCase):
         input_doc, overrides = self.get_last_consume_delay_call_args()
 
         self.assertEqual(input_doc.original_file.name, "simple.pdf")
-        self.assertIn(Path(settings.SCRATCH_DIR), input_doc.original_file.parents)
+        self.assertEqual(input_doc.original_file.parent.parent.resolve(), Path(settings.SCRATCH_DIR).resolve())
         self.assertIsNone(overrides.title)
         self.assertIsNone(overrides.correspondent_id)
         self.assertIsNone(overrides.document_type_id)
@@ -1240,7 +1240,7 @@ class TestDocumentApi(DirectoriesMixin, DocumentConsumeDelayMixin, APITestCase):
         input_doc, overrides = self.get_last_consume_delay_call_args()
 
         self.assertEqual(input_doc.original_file.name, "simple.pdf")
-        self.assertIn(Path(settings.SCRATCH_DIR), input_doc.original_file.parents)
+        self.assertEqual(input_doc.original_file.parent.parent.resolve(), Path(settings.SCRATCH_DIR).resolve())
         self.assertIsNone(overrides.title)
         self.assertIsNone(overrides.correspondent_id)
         self.assertIsNone(overrides.document_type_id)

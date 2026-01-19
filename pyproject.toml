@@ -95,6 +95,10 @@ optional-dependencies.postgres = [
   "psycopg-c==3.2.12",
   "psycopg-pool==3.3",
 ]
+optional-dependencies.docling = [
+  "docling",
+  "opencv-python",
+]
 optional-dependencies.webserver = [
   "granian[uvloop]~=2.5.1",
 ]

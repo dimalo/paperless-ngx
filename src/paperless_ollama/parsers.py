@@ -5,9 +5,9 @@ from pathlib import Path
 import httpx
 
 from documents.parsers import ParseError
-from paperless_tesseract.parsers import RasterisedDocumentParser
 from documents.parsers import make_thumbnail_from_pdf
 from paperless.config import OllamaConfig
+from paperless_tesseract.parsers import RasterisedDocumentParser
 
 
 class OllamaDocumentParser(RasterisedDocumentParser):

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import cv2
 from django.conf import settings
 from PIL import Image
+from PIL import ImageFilter
 
 from documents.parsers import DocumentParser
 from documents.parsers import ParseError
@@ -160,7 +161,7 @@ class RasterisedDocumentParser(DocumentParser):
         with Image.open(image_path) as img:
             # Apply UnsharpMask filter
             sharpened = img.filter(
-                Image.Filter.UnsharpMask(
+                ImageFilter.UnsharpMask(
                     radius=self.settings.sharpen_radius,
                     percent=self.settings.sharpen_percent,
                     threshold=self.settings.sharpen_threshold,

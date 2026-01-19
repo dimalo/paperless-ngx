@@ -6,9 +6,9 @@ import httpx
 from django.conf import settings
 
 from documents.parsers import ParseError
-from paperless_tesseract.parsers import RasterisedDocumentParser
 from documents.parsers import make_thumbnail_from_pdf
 from paperless.config import DoclingConfig
+from paperless_tesseract.parsers import RasterisedDocumentParser
 
 
 class DoclingDocumentParser(RasterisedDocumentParser):
