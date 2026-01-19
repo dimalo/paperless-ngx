@@ -4,6 +4,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import NoReturn
 
+from django.conf import settings
+
+from documents.file_handling import convert_format_str_to_template_format
+from documents.file_handling import format_filename
+
 if TYPE_CHECKING:
     from collections.abc import Callable
     from zipfile import ZipFile
@@ -58,14 +63,21 @@ class BulkArchiveStrategy:
 
         The path is already unique, as handled when a document is consumed or updated
         """
-        if archive and doc.has_archive_version:
-            if TYPE_CHECKING:
-                assert doc.archive_filename is not None
-            in_archive_path: Path = Path(folder) / doc.archive_filename
+        filename_format = convert_format_str_to_template_format(settings.FILENAME_FORMAT)
+        rendered = format_filename(doc, filename_format)
+        if rendered:
+            final_name = rendered + ".pdf" if archive else rendered + doc.file_type
+            in_archive_path = Path(folder) / final_name
         else:
-            if TYPE_CHECKING:
-                assert doc.filename is not None
-            in_archive_path = Path(folder) / doc.filename
+            # fallback to default
+            if archive and doc.has_archive_version:
+                if TYPE_CHECKING:
+                    assert doc.archive_filename is not None
+                in_archive_path = Path(folder) / doc.archive_filename
+            else:
+                if TYPE_CHECKING:
+                    assert doc.filename is not None
+                in_archive_path = Path(folder) / doc.filename
 
         return in_archive_path
 

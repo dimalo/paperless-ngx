@@ -16,7 +16,7 @@ This file contains guidelines and commands for AI agents working on the Paperles
 
 ### Package Management
 ```bash
-# Install all dependencies (including dev dependencies)
+# Install all dependencies (including dev dependencies and testing)
 uv sync --group dev
 
 # Install only production dependencies
@@ -36,8 +36,8 @@ uv run pytest
 # Run tests with verbose output
 uv run pytest -v
 
-# Run tests in parallel (auto-detect CPU count)
-uv run pytest --numprocesses=auto
+# Run tests in parallel (auto-detect CPU count with pytest-xdist)
+uv run pytest -n auto
 ```
 
 #### Run Specific Tests
@@ -57,6 +57,12 @@ uv run pytest -k "test_correspondent"
 
 # Run tests with coverage for specific files
 uv run pytest --cov=documents.models src/documents/tests/test_models.py
+
+# Run multiple test files efficiently (avoids excessive process spawning)
+uv run pytest src/documents/tests/test_models.py src/documents/tests/test_views.py
+
+# If running separate commands, disable parallelism to avoid excessive processes
+uv run pytest -n 1 src/documents/tests/test_models.py
 ```
 
 #### Test Configuration
@@ -448,7 +454,7 @@ uv run python manage.py runserver
 ### Testing Environment
 ```bash
 # Install test dependencies
-uv sync --group testing
+uv sync --group dev
 
 # Run tests
 uv run pytest

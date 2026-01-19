@@ -16,7 +16,7 @@ def delete_empty_directories(directory: Path, root: Path) -> None:
     if not directory.is_dir():
         return
 
-    if not directory.is_relative_to(root):
+    if not directory.resolve().is_relative_to(root.resolve()):
         # don't do anything outside our originals folder.
 
         # append os.path.set so that we avoid these cases:
