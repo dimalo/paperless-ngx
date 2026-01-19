@@ -363,7 +363,9 @@ class Document(SoftDeleteModel, ModelWithOwner):
             if self.storage_type == self.STORAGE_TYPE_GPG:
                 fname += ".gpg"  # pragma: no cover
 
-        return (settings.ORIGINALS_DIR / Path(fname)).resolve()
+        path = (settings.ORIGINALS_DIR / Path(fname)).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
 
     @property
     def source_file(self):
@@ -376,7 +378,9 @@ class Document(SoftDeleteModel, ModelWithOwner):
     @property
     def archive_path(self) -> Path | None:
         if self.has_archive_version:
-            return (settings.ARCHIVE_DIR / Path(str(self.archive_filename))).resolve()
+            path = (settings.ARCHIVE_DIR / Path(str(self.archive_filename))).resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            return path
         else:
             return None
 
@@ -414,6 +418,8 @@ class Document(SoftDeleteModel, ModelWithOwner):
             webp_file_name += ".gpg"
 
         webp_file_path = settings.THUMBNAIL_DIR / Path(webp_file_name)
+        webp_file_path.parent.mkdir(parents=True, exist_ok=True)
+        return webp_file_path
 
         return webp_file_path.resolve()
 
