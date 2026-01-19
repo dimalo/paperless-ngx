@@ -317,6 +317,9 @@ class Document(SoftDeleteModel, ModelWithOwner):
         ordering = ("-created",)
         verbose_name = _("document")
         verbose_name_plural = _("documents")
+        permissions = [
+            ("apply_ai_enhancement", _("Can apply AI enhancement suggestions")),
+        ]
 
     def __str__(self) -> str:
         created = self.created.isoformat()
@@ -1584,3 +1587,177 @@ class WorkflowRun(SoftDeleteModel):
 
     def __str__(self):
         return f"WorkflowRun of {self.workflow} at {self.run_at} on {self.document}"
+
+
+class AIReviewQueue(ModelWithOwner):
+    """
+    Model for queuing low-confidence AI suggestions for manual review.
+
+    This model stores AI-generated suggestions that fall within the review
+    confidence range (0.5-0.7) and require manual approval before application.
+    High-confidence suggestions (≥0.7) are auto-applied, while low-confidence
+    suggestions (<0.5) are ignored.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending")
+        APPROVED = "approved", _("Approved")
+        REJECTED = "rejected", _("Rejected")
+        APPLIED = "applied", _("Applied")
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="ai_review_queues",
+        verbose_name=_("document"),
+    )
+
+    suggestions = models.JSONField(
+        _("suggestions"),
+        help_text=_(
+            "JSON structure containing AI-generated suggestions for document metadata",
+        ),
+    )
+
+    confidence_scores = models.JSONField(
+        _("confidence scores"),
+        help_text=_("JSON structure containing confidence scores for each suggestion"),
+    )
+
+    status = models.CharField(
+        _("status"),
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    reviewed_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_ai_reviews",
+        verbose_name=_("reviewed by"),
+    )
+
+    reviewed_at = models.DateTimeField(
+        _("reviewed at"),
+        null=True,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        _("created at"),
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        _("updated at"),
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+        verbose_name = _("AI review queue")
+        verbose_name_plural = _("AI review queues")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_ai_review_per_document_v2",
+            ),
+        ]
+
+    def __str__(self):
+        return f"AI Review for {self.document.title} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        if (
+            self.status in [self.Status.APPROVED, self.Status.REJECTED]
+            and self.reviewed_by
+            and not self.reviewed_at
+        ):
+            from django.utils import timezone
+
+            self.reviewed_at = timezone.now()
+        super().save(*args, **kwargs)
+
+
+class AISuggestionHistory(ModelWithOwner):
+    """
+    Model for tracking applied AI suggestions for rollback capabilities.
+
+    This model stores historical records of AI suggestions that have been applied
+    to documents, enabling rollback of changes if needed. It maintains audit trails
+    and supports retention policies for safety and compliance.
+    """
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="ai_suggestion_histories",
+        verbose_name=_("document"),
+    )
+
+    applied_suggestions = models.JSONField(
+        _("applied suggestions"),
+        help_text=_(
+            "JSON structure containing the AI suggestions that were applied to the document",
+        ),
+    )
+
+    confidence_scores = models.JSONField(
+        _("confidence scores"),
+        help_text=_(
+            "JSON structure containing confidence scores for each applied suggestion",
+        ),
+    )
+
+    applied_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="applied_ai_suggestions",
+        verbose_name=_("applied by"),
+    )
+
+    applied_at = models.DateTimeField(
+        _("applied at"),
+        auto_now_add=True,
+    )
+
+    rolled_back = models.BooleanField(
+        _("rolled back"),
+        default=False,
+        help_text=_("Whether this suggestion has been rolled back"),
+    )
+
+    rolled_back_at = models.DateTimeField(
+        _("rolled back at"),
+        null=True,
+        blank=True,
+    )
+
+    rolled_back_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rolled_back_ai_suggestions",
+        verbose_name=_("rolled back by"),
+    )
+
+    class Meta:
+        ordering = ("-applied_at",)
+        verbose_name = _("AI suggestion history")
+        verbose_name_plural = _("AI suggestion histories")
+
+    def __str__(self):
+        status = "Rolled Back" if self.rolled_back else "Applied"
+        return f"AI Suggestion History for {self.document.title} ({status})"
+
+
+if settings.AUDIT_LOG_ENABLED:
+    auditlog.register(AIReviewQueue)
+    auditlog.register(AISuggestionHistory)

@@ -34,6 +34,7 @@ from documents.double_sided import CollatePlugin
 from documents.file_handling import create_source_path_directory
 from documents.file_handling import generate_unique_filename
 from documents.matching import prefilter_documents_by_workflowtrigger
+from documents.models import AIReviewQueue
 from documents.models import Correspondent
 from documents.models import CustomFieldInstance
 from documents.models import Document
@@ -55,9 +56,19 @@ from documents.signals.handlers import cleanup_document_deletion
 from documents.signals.handlers import run_workflows
 from documents.workflows.utils import get_workflows_for_trigger
 from paperless.config import AIConfig
+from paperless_ai.ai_classifier import get_ai_document_classification_with_confidence
 from paperless_ai.indexing import llm_index_add_or_update_document
 from paperless_ai.indexing import llm_index_remove_document
 from paperless_ai.indexing import update_llm_index
+from paperless_ai.matching import auto_match_or_create_correspondents
+from paperless_ai.matching import auto_match_or_create_document_types
+from paperless_ai.matching import auto_match_or_create_storage_paths
+from paperless_ai.matching import auto_match_or_create_tags
+
+
+class AIFailureException(Exception):
+    """Exception raised when AI service fails and graceful degradation is disabled."""
+
 
 if settings.AUDIT_LOG_ENABLED:
     from auditlog.models import LogEntry
@@ -625,3 +636,228 @@ def update_document_in_llm_index(document):
 @shared_task
 def remove_document_from_llm_index(document):
     llm_index_remove_document(document)
+
+
+def needs_review(ai_result):
+    """
+    Check if any AI suggestions require review based on confidence thresholds.
+
+    Returns True if any suggestion has confidence between 0.5 and 0.7 (inclusive to exclusive).
+    """
+    return any(
+        suggestion.get("confidence", 0) >= 0.5 and suggestion.get("confidence", 0) < 0.7
+        for category in [
+            "title",
+            "tags",
+            "correspondents",
+            "document_types",
+            "storage_paths",
+        ]
+        for suggestion in (
+            ai_result.get(category, [])
+            if isinstance(ai_result.get(category), list)
+            else [ai_result.get(category)]
+        )
+        if isinstance(suggestion, dict) and "confidence" in suggestion
+    )
+
+
+@shared_task
+def auto_enhance_document(document_pk: int):
+    """
+    Async task to auto-enhance document with AI metadata based on confidence thresholds.
+
+    For suggestions with confidence >= 0.7: auto-apply
+    For suggestions with 0.5 <= confidence < 0.7: create review queue item
+    For suggestions with confidence < 0.5: ignore
+
+    Includes rate limiting, graceful degradation, and audit logging.
+    """
+    try:
+        document = Document.objects.get(pk=document_pk)
+        ai_config = AIConfig()
+
+        # Check if auto-enhancement is enabled
+        if not ai_config.enable_auto_ai_enhancement:
+            logger.debug("Auto AI enhancement is disabled, skipping")
+            return
+
+        # Rate limiting check
+        from documents.utils import check_ai_rate_limit
+
+        if not check_ai_rate_limit(document.owner):
+            logger.warning(
+                f"Rate limit exceeded for user {document.owner.username}, "
+                f"skipping auto-enhancement for document {document_pk}",
+            )
+            return
+
+        # Get AI classification with confidence scores - with graceful degradation
+        try:
+            ai_result = get_ai_document_classification_with_confidence(
+                document,
+                document.owner,
+            )
+        except Exception as e:
+            if ai_config.graceful_degradation:
+                logger.warning(
+                    f"AI service unavailable for document {document_pk}, "
+                    f"skipping enhancement due to graceful degradation: {e}",
+                )
+                return
+            else:
+                raise AIFailureException(f"AI service unavailable: {e}") from e
+
+        # Check if any suggestion requires review (0.5 <= confidence < 0.7)
+        needs_review_flag = needs_review(ai_result)
+
+        if needs_review_flag:
+            # Create review queue item
+            suggestions = {
+                "title": ai_result.get("title"),
+                "tags": ai_result.get("tags", []),
+                "correspondents": ai_result.get("correspondents", []),
+                "document_types": ai_result.get("document_types", []),
+                "storage_paths": ai_result.get("storage_paths", []),
+            }
+            confidence_scores = {
+                "title": ai_result.get("title", {}).get("confidence"),
+                "tags": [tag.get("confidence") for tag in ai_result.get("tags", [])],
+                "correspondents": [
+                    corr.get("confidence")
+                    for corr in ai_result.get("correspondents", [])
+                ],
+                "document_types": [
+                    dt.get("confidence") for dt in ai_result.get("document_types", [])
+                ],
+                "storage_paths": [
+                    sp.get("confidence") for sp in ai_result.get("storage_paths", [])
+                ],
+            }
+
+            AIReviewQueue.objects.create(
+                document=document,
+                suggestions=suggestions,
+                confidence_scores=confidence_scores,
+                owner=document.owner,
+            )
+            logger.info(f"Created AI review queue item for document {document_pk}")
+            return
+
+        # Auto-apply if all suggestions meet high confidence threshold
+        confidence_threshold = ai_config.confidence_threshold
+        auto_create_threshold = ai_config.auto_create_threshold
+
+        applied_suggestions = {}
+        confidence_scores = {}
+
+        # Auto-assign title if confidence is high enough
+        if ai_result["title"]["confidence"] >= confidence_threshold:
+            document.title = ai_result["title"]["value"]
+            applied_suggestions["title"] = ai_result["title"]
+            confidence_scores["title"] = ai_result["title"]["confidence"]
+            logger.info(
+                f"Auto-assigned title '{document.title}' to document {document_pk}",
+            )
+
+        # Auto-match/create and assign tags
+        matched_tags = auto_match_or_create_tags(
+            ai_result["tags"],
+            document.owner,
+            auto_create_threshold,
+        )
+        if matched_tags:
+            document.tags.add(*matched_tags)
+            applied_suggestions["tags"] = [tag.name for tag in matched_tags]
+            confidence_scores["tags"] = [
+                tag.get("confidence") for tag in ai_result["tags"]
+            ]
+            logger.info(
+                f"Auto-assigned {len(matched_tags)} tags to document {document_pk}",
+            )
+
+        # Auto-match/create and assign correspondents
+        matched_correspondents = auto_match_or_create_correspondents(
+            ai_result["correspondents"],
+            document.owner,
+            auto_create_threshold,
+        )
+        if matched_correspondents and not document.correspondent:
+            # Only assign if not already set
+            document.correspondent = matched_correspondents[0]
+            applied_suggestions["correspondents"] = [
+                corr.name for corr in matched_correspondents
+            ]
+            confidence_scores["correspondents"] = [
+                corr.get("confidence") for corr in ai_result["correspondents"]
+            ]
+            logger.info(
+                f"Auto-assigned correspondent '{document.correspondent}' to document {document_pk}",
+            )
+
+        # Auto-match/create and assign document types
+        matched_document_types = auto_match_or_create_document_types(
+            ai_result["document_types"],
+            document.owner,
+            auto_create_threshold,
+        )
+        if matched_document_types and not document.document_type:
+            # Only assign if not already set
+            document.document_type = matched_document_types[0]
+            applied_suggestions["document_types"] = [
+                dt.name for dt in matched_document_types
+            ]
+            confidence_scores["document_types"] = [
+                dt.get("confidence") for dt in ai_result["document_types"]
+            ]
+            logger.info(
+                f"Auto-assigned document type '{document.document_type}' to document {document_pk}",
+            )
+
+        # Auto-match/create and assign storage paths
+        matched_storage_paths = auto_match_or_create_storage_paths(
+            ai_result["storage_paths"],
+            document.owner,
+            auto_create_threshold,
+        )
+        if matched_storage_paths and not document.storage_path:
+            # Only assign if not already set
+            document.storage_path = matched_storage_paths[0]
+            applied_suggestions["storage_paths"] = [
+                sp.name for sp in matched_storage_paths
+            ]
+            confidence_scores["storage_paths"] = [
+                sp.get("confidence") for sp in ai_result["storage_paths"]
+            ]
+            logger.info(
+                f"Auto-assigned storage path '{document.storage_path}' to document {document_pk}",
+            )
+
+        # Save the document
+        document.save()
+
+        # Create history record if suggestions were applied
+        if applied_suggestions:
+            from documents.models import AISuggestionHistory
+
+            AISuggestionHistory.objects.create(
+                document=document,
+                applied_suggestions=applied_suggestions,
+                confidence_scores=confidence_scores,
+                applied_by=document.owner,
+                owner=document.owner,
+            )
+            logger.info(
+                f"Created AI suggestion history record for document {document_pk}",
+            )
+
+        logger.info(f"Completed auto-enhancement for document {document_pk}")
+
+    except Document.DoesNotExist:
+        logger.error(f"Document {document_pk} not found for auto-enhancement")
+    except AIFailureException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Error during auto-enhancement of document {document_pk}: {e}",
+        )

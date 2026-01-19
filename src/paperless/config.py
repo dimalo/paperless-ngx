@@ -213,6 +213,16 @@ class AIConfig(BaseConfig):
     llm_model: str = dataclasses.field(init=False)
     llm_api_key: str = dataclasses.field(init=False)
     llm_endpoint: str = dataclasses.field(init=False)
+    enable_auto_ai_enhancement: bool = dataclasses.field(init=False)
+    confidence_threshold: float = dataclasses.field(init=False)
+    auto_create_threshold: float = dataclasses.field(init=False)
+    force_ai_update: bool = dataclasses.field(init=False)
+    rollback_enabled: bool = dataclasses.field(init=False)
+    rollback_retention_days: int = dataclasses.field(init=False)
+    audit_log_level: str = dataclasses.field(init=False)
+    rate_limit_requests: int = dataclasses.field(init=False)
+    rate_limit_window: int = dataclasses.field(init=False)
+    graceful_degradation: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -228,6 +238,92 @@ class AIConfig(BaseConfig):
         self.llm_model = app_config.llm_model or settings.LLM_MODEL
         self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY
         self.llm_endpoint = app_config.llm_endpoint or settings.LLM_ENDPOINT
+
+        # Auto-enhancement settings
+        self.enable_auto_ai_enhancement = getattr(
+            app_config,
+            "enable_auto_ai_enhancement",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_AUTO_ASSIGN", False)
+        self.confidence_threshold = getattr(
+            app_config,
+            "confidence_threshold",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_CONFIDENCE_THRESHOLD", 0.7)
+        self.auto_create_threshold = getattr(
+            app_config,
+            "auto_create_threshold",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_AUTO_CREATE_THRESHOLD", 0.8)
+        self.force_ai_update = getattr(app_config, "force_ai_update", None) or getattr(
+            settings,
+            "PAPERLESS_AI_FORCE_UPDATE",
+            False,
+        )
+
+        # Safety and configuration settings
+        self.rollback_enabled = getattr(
+            app_config,
+            "rollback_enabled",
+            None,
+        ) or getattr(
+            settings,
+            "ROLLBACK_ENABLED",
+            True,
+        )
+        self.rollback_retention_days = getattr(
+            app_config,
+            "rollback_retention_days",
+            None,
+        ) or getattr(
+            settings,
+            "ROLLBACK_RETENTION_DAYS",
+            30,
+        )
+        self.audit_log_level = getattr(app_config, "audit_log_level", None) or getattr(
+            settings,
+            "AUDIT_LOG_LEVEL",
+            "INFO",
+        )
+        self.rate_limit_requests = getattr(
+            app_config,
+            "rate_limit_requests",
+            None,
+        ) or getattr(
+            settings,
+            "RATE_LIMIT_REQUESTS",
+            100,
+        )
+        self.rate_limit_window = getattr(
+            app_config,
+            "rate_limit_window",
+            None,
+        ) or getattr(
+            settings,
+            "RATE_LIMIT_WINDOW",
+            60,
+        )
+        self.graceful_degradation = getattr(
+            app_config,
+            "graceful_degradation",
+            None,
+        ) or getattr(
+            settings,
+            "GRACEFUL_DEGRADATION",
+            True,
+        )
+
+        # Validate thresholds
+        if not (0.0 <= self.confidence_threshold <= 1.0):
+            raise ValueError("Confidence threshold must be between 0.0 and 1.0")
+        if not (0.0 <= self.auto_create_threshold <= 1.0):
+            raise ValueError("Auto-create threshold must be between 0.0 and 1.0")
+        if self.rollback_retention_days <= 0:
+            raise ValueError("Rollback retention days must be greater than 0")
+        if self.rate_limit_requests <= 0:
+            raise ValueError("Rate limit requests must be greater than 0")
+        if self.rate_limit_window <= 0:
+            raise ValueError("Rate limit window must be greater than 0")
 
     @property
     def llm_index_enabled(self) -> bool:
@@ -262,12 +358,28 @@ class DoclingConfig(BaseConfig):
         self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
         self.endpoint = app_config.docling_endpoint or settings.DOCLING_ENDPOINT
         self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
-        self.sharpen = app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
-        self.custom_alignment = app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
-        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
-        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
-        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
-        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        self.sharpen = (
+            app_config.ocr_sharpen
+            if app_config.ocr_sharpen is not None
+            else settings.OCR_SHARPEN
+        )
+        self.custom_alignment = (
+            app_config.ocr_custom_alignment
+            if app_config.ocr_custom_alignment is not None
+            else settings.OCR_CUSTOM_ALIGNMENT
+        )
+        self.sharpen_radius = (
+            app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        )
+        self.sharpen_percent = (
+            app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        )
+        self.sharpen_threshold = (
+            app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        )
+        self.alignment_threshold = (
+            app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        )
 
 
 @dataclasses.dataclass
@@ -296,9 +408,25 @@ class OllamaConfig(BaseConfig):
             app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE
         )
         self.timeout = app_config.ollama_timeout or settings.OLLAMA_TIMEOUT
-        self.sharpen = app_config.ocr_sharpen if app_config.ocr_sharpen is not None else settings.OCR_SHARPEN
-        self.custom_alignment = app_config.ocr_custom_alignment if app_config.ocr_custom_alignment is not None else settings.OCR_CUSTOM_ALIGNMENT
-        self.sharpen_radius = app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
-        self.sharpen_percent = app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
-        self.sharpen_threshold = app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
-        self.alignment_threshold = app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        self.sharpen = (
+            app_config.ocr_sharpen
+            if app_config.ocr_sharpen is not None
+            else settings.OCR_SHARPEN
+        )
+        self.custom_alignment = (
+            app_config.ocr_custom_alignment
+            if app_config.ocr_custom_alignment is not None
+            else settings.OCR_CUSTOM_ALIGNMENT
+        )
+        self.sharpen_radius = (
+            app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
+        )
+        self.sharpen_percent = (
+            app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
+        )
+        self.sharpen_threshold = (
+            app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
+        )
+        self.alignment_threshold = (
+            app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        )

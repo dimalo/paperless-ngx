@@ -50,6 +50,7 @@ if settings.AUDIT_LOG_ENABLED:
 from documents import bulk_edit
 from documents.data_models import DocumentSource
 from documents.filters import CustomFieldQueryParser
+from documents.models import AIReviewQueue
 from documents.models import Correspondent
 from documents.models import CustomField
 from documents.models import CustomFieldInstance
@@ -2737,6 +2738,42 @@ class TrashSerializer(SerializerWithPerms):
                 "Some documents in the list have not yet been deleted.",
             )
         return documents
+
+
+class AIReviewQueueSerializer(OwnedObjectSerializer):
+    """
+    Serializer for AI review queue items.
+
+    Handles serialization of low-confidence AI suggestions that require
+    manual review and approval before application to documents.
+    """
+
+    document = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    reviewed_by = BasicUserSerializer(read_only=True)
+
+    class Meta:
+        model = AIReviewQueue
+        fields = [
+            "id",
+            "document",
+            "suggestions",
+            "confidence_scores",
+            "status",
+            "reviewed_by",
+            "reviewed_at",
+            "created_at",
+            "updated_at",
+            "owner",
+            "permissions",
+            "user_can_change",
+            "is_shared_by_requester",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class StoragePathTestSerializer(SerializerWithPerms):

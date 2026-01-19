@@ -1,8 +1,11 @@
 from django.conf import settings
 from django.contrib import admin
+from django.utils import timezone
 from guardian.admin import GuardedModelAdmin
 from treenode.admin import TreeNodeModelAdmin
 
+from documents.models import AIReviewQueue
+from documents.models import AISuggestionHistory
 from documents.models import Correspondent
 from documents.models import CustomField
 from documents.models import CustomFieldInstance
@@ -207,6 +210,97 @@ class CustomFieldInstancesAdmin(GuardedModelAdmin):
         )
 
 
+class AIReviewQueueAdmin(GuardedModelAdmin):
+    list_display = (
+        "document",
+        "status",
+        "created_at",
+        "reviewed_by",
+        "owner",
+        "min_confidence",
+    )
+    list_filter = ("status", "created_at", "reviewed_at")
+    search_fields = ("document__title", "reviewed_by__username")
+    readonly_fields = ("created_at", "updated_at")
+
+    def min_confidence(self, obj):
+        """Display the minimum confidence score for the review item."""
+        if obj.confidence_scores:
+            scores = [
+                score
+                for score in obj.confidence_scores.values()
+                if isinstance(score, (int, float))
+            ]
+            return min(scores) if scores else None
+        return None
+
+    min_confidence.short_description = "Min Confidence"
+
+    actions = ["bulk_approve", "bulk_reject"]
+
+    def bulk_approve(self, request, queryset):
+        """Bulk approve selected review items."""
+        count = queryset.filter(status=AIReviewQueue.Status.PENDING).update(
+            status=AIReviewQueue.Status.APPROVED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+        self.message_user(request, f"Approved {count} AI review items.")
+
+    bulk_approve.short_description = "Approve selected AI reviews"
+
+    def bulk_reject(self, request, queryset):
+        """Bulk reject selected review items."""
+        count = queryset.filter(status=AIReviewQueue.Status.PENDING).update(
+            status=AIReviewQueue.Status.REJECTED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+        self.message_user(request, f"Rejected {count} AI review items.")
+
+    bulk_reject.short_description = "Reject selected AI reviews"
+
+
+class AISuggestionHistoryAdmin(GuardedModelAdmin):
+    list_display = (
+        "document",
+        "applied_at",
+        "applied_by",
+        "rolled_back",
+        "rolled_back_at",
+        "rolled_back_by",
+        "owner",
+    )
+    list_filter = ("rolled_back", "applied_at", "rolled_back_at")
+    search_fields = (
+        "document__title",
+        "applied_by__username",
+        "rolled_back_by__username",
+    )
+    readonly_fields = ("applied_at", "rolled_back_at")
+    actions = ["bulk_rollback"]
+
+    def bulk_rollback(self, request, queryset):
+        """Bulk rollback selected history items."""
+        from documents.utils import rollback_ai_suggestions
+
+        count = 0
+        errors = []
+        for history in queryset.filter(rolled_back=False):
+            try:
+                rollback_ai_suggestions(history.id, request.user)
+                count += 1
+            except Exception as e:
+                errors.append(f"Failed to rollback {history.id}: {e}")
+
+        if count:
+            self.message_user(request, f"Rolled back {count} AI suggestion histories.")
+        if errors:
+            self.message_user(request, f"Errors: {'; '.join(errors)}", level="ERROR")
+
+    bulk_rollback.short_description = "Rollback selected AI suggestions"
+
+
 admin.site.register(Correspondent, CorrespondentAdmin)
 admin.site.register(Tag, TagAdmin)
 admin.site.register(DocumentType, DocumentTypeAdmin)
@@ -218,6 +312,8 @@ admin.site.register(Note, NotesAdmin)
 admin.site.register(ShareLink, ShareLinksAdmin)
 admin.site.register(CustomField, CustomFieldsAdmin)
 admin.site.register(CustomFieldInstance, CustomFieldInstancesAdmin)
+admin.site.register(AIReviewQueue, AIReviewQueueAdmin)
+admin.site.register(AISuggestionHistory, AISuggestionHistoryAdmin)
 
 if settings.AUDIT_LOG_ENABLED:
 

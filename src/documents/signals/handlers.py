@@ -422,7 +422,7 @@ def update_filename_and_move_files(
         instance = instance.document
 
     def validate_move(instance, old_path: Path, new_path: Path, root: Path):
-        if not new_path.is_relative_to(root):
+        if not new_path.resolve().is_relative_to(root.resolve()):
             msg = (
                 f"Document {instance!s}: Refusing to move file outside root {root}: "
                 f"{new_path}."
@@ -997,3 +997,35 @@ def delete_document_from_llm_index(sender, instance: Document, **kwargs):
         from documents.tasks import remove_document_from_llm_index
 
         remove_document_from_llm_index.delay(instance)
+
+
+def auto_enhance_document_with_ai(sender, document: Document, **kwargs):
+    """
+    Signal handler to trigger auto-enhancement of document with AI metadata.
+    """
+    ai_config = AIConfig()
+
+    # Check if auto-enhancement is enabled
+    if not ai_config.enable_auto_ai_enhancement:
+        return
+
+    # Skip if document already has metadata and force update is disabled
+    if not ai_config.force_ai_update:
+        has_metadata = (
+            document.title
+            or document.tags.exists()
+            or document.correspondent
+            or document.document_type
+            or document.storage_path
+        )
+        if has_metadata:
+            logger.debug(
+                f"Document {document.pk} already has metadata, skipping auto-enhancement",
+            )
+            return
+
+    # Call async task for auto-enhancement
+    from documents.tasks import auto_enhance_document
+
+    auto_enhance_document.delay(document.pk)
+    logger.debug(f"Triggered auto-enhancement task for document {document.pk}")
