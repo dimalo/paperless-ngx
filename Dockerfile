@@ -130,6 +130,8 @@ ARG RUNTIME_PACKAGES="\
   gnupg \
   icc-profiles-free \
   imagemagick \
+  # OpenCV dependencies
+  libgl1 \
   # PostgreSQL
   postgresql-client \
   # MySQL / MariaDB
@@ -162,6 +164,9 @@ ARG RUNTIME_PACKAGES="\
 # These change very infrequently
 RUN set -eux \
   echo "Installing system packages" \
+    && echo "deb http://deb.debian.org/debian trixie contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://deb.debian.org/debian trixie-updates contrib non-free" >> /etc/apt/sources.list \
+    && echo "deb http://deb.debian.org/debian-security trixie-security contrib non-free" >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get install --yes --quiet --no-install-recommends ${RUNTIME_PACKAGES} \
     && echo "Installing pre-built updates" \

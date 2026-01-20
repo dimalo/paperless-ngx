@@ -1,18 +1,21 @@
-from django.apps import apps
+def get_parser(*args, **kwargs):
+    from paperless_ollama.parsers import OllamaDocumentParser
+
+    return OllamaDocumentParser(*args, **kwargs)
 
 
 def ollama_consumer_declaration(sender, **kwargs):
     return {
-        "parser": apps.get_app_config("paperless_ollama").parser_class,
+        "parser": get_parser,
         "weight": 4,
         "mime_types": {
-            "application/pdf",
-            "image/png",
-            "image/jpeg",
-            "image/tiff",
-            "image/bmp",
-            "image/gif",
-            "image/webp",
-            "image/heic",
+            "application/pdf": ".pdf",
+            "image/png": ".png",
+            "image/jpeg": ".jpg",
+            "image/tiff": ".tif",
+            "image/bmp": ".bmp",
+            "image/gif": ".gif",
+            "image/webp": ".webp",
+            "image/heic": ".heic",
         },
     }

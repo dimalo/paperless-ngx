@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Permission
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
@@ -73,7 +74,8 @@ class AIReviewQueueTestCase(TestCase):
         """Test that items are ordered by created_at descending."""
         item1 = AIReviewQueueFactory.create(document=self.document)
         item2 = AIReviewQueueFactory.create(
-            document=self.document, status=AIReviewQueue.Status.APPROVED,
+            document=self.document,
+            status=AIReviewQueue.Status.APPROVED,
         )
 
         # Force different creation times
@@ -88,9 +90,9 @@ class AIReviewQueueTestCase(TestCase):
 
     def test_status_choices(self):
         """Test that status field accepts valid choices."""
-        for status in AIReviewQueue.Status:
-            item = AIReviewQueueFactory.create(status=status)
-            self.assertEqual(item.status, status)
+        for status_choice in AIReviewQueue.Status:
+            item = AIReviewQueueFactory.create(status=status_choice)
+            self.assertEqual(item.status, status_choice)
 
 
 class AIReviewQueueAPITestCase(APITestCase):
@@ -102,6 +104,16 @@ class AIReviewQueueAPITestCase(APITestCase):
             username="otheruser",
             password="otherpass",
         )
+        # Add permissions for aireviewqueue
+        perms = Permission.objects.filter(
+            codename__in=[
+                "view_aireviewqueue",
+                "add_aireviewqueue",
+                "change_aireviewqueue",
+                "delete_aireviewqueue",
+            ],
+        )
+        self.user.user_permissions.add(*perms)
         self.document = DocumentFactory.create(owner=self.user)
         self.other_document = DocumentFactory.create(owner=self.other_user)
         self.client.force_authenticate(user=self.user)
@@ -109,7 +121,7 @@ class AIReviewQueueAPITestCase(APITestCase):
     def test_list_review_items(self):
         """Test listing AI review queue items."""
         item1 = AIReviewQueueFactory.create(document=self.document)
-        item2 = AIReviewQueueFactory.create(document=self.other_document)
+        _item2 = AIReviewQueueFactory.create(document=self.other_document)
 
         response = self.client.get("/api/ai_review/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

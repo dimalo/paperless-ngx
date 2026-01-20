@@ -86,6 +86,10 @@ dependencies = [
   "zxing-cpp~=2.3.0",
 ]
 
+optional-dependencies.docling = [
+  "docling",
+  "opencv-python",
+]
 optional-dependencies.mariadb = [
   "mysqlclient~=2.2.7",
 ]
@@ -95,16 +99,8 @@ optional-dependencies.postgres = [
   "psycopg-c==3.2.12",
   "psycopg-pool==3.3",
 ]
-optional-dependencies.docling = [
-  "docling",
-  "opencv-python",
-]
 optional-dependencies.webserver = [
   "granian[uvloop]~=2.5.1",
-]
-optional-dependencies.docling = [
-  "docling",
-  "opencv-python",
 ]
 
 [dependency-groups]
