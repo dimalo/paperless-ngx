@@ -1,5 +1,5 @@
 import logging
-import multiprocessing
+from multiprocessing.dummy import Pool as ThreadPool
 
 import tqdm
 from django import db
@@ -79,7 +79,11 @@ class Command(MultiProcessMixin, ProgressBarMixin, BaseCommand):
                 for doc_id in document_ids:
                     update_document_content_maybe_archive_file(doc_id)
             else:  # pragma: no cover
-                with multiprocessing.Pool(self.process_count) as pool:
+                # Use a ThreadPool instead of a Process Pool. The work is
+                # primarily subprocess-bound (Ghostscript), so threads are
+                # efficient enough and avoid issues with Django's app registry
+                # in spawned processes (especially on macOS).
+                with ThreadPool(self.process_count) as pool:
                     list(
                         tqdm.tqdm(
                             pool.imap_unordered(
