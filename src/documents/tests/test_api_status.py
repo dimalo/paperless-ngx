@@ -20,7 +20,9 @@ class TestSystemStatus(APITestCase):
             username="temp_admin",
         )
 
-    def test_system_status(self):
+    @mock.patch("documents.views.Redis.from_url")
+    @mock.patch("documents.views.celery_app.control.inspect")
+    def test_system_status(self, mock_inspect, mock_redis):
         """
         GIVEN:
             - A user is logged in
@@ -29,6 +31,11 @@ class TestSystemStatus(APITestCase):
         THEN:
             - The response contains relevant system status information
         """
+        mock_redis.return_value.__enter__.return_value.ping.side_effect = Exception(
+            "Redis error",
+        )
+        mock_inspect.return_value.ping.side_effect = Exception("Celery error")
+
         self.client.force_login(self.user)
         response = self.client.get(self.ENDPOINT)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -45,6 +52,8 @@ class TestSystemStatus(APITestCase):
         self.assertEqual(response.data["tasks"]["redis_url"], "redis://localhost:6379")
         self.assertEqual(response.data["tasks"]["redis_status"], "ERROR")
         self.assertIsNotNone(response.data["tasks"]["redis_error"])
+        self.assertEqual(response.data["tasks"]["celery_status"], "ERROR")
+        self.assertIsNotNone(response.data["tasks"]["celery_error"])
 
     def test_system_status_insufficient_permissions(self):
         """

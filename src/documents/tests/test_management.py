@@ -99,9 +99,9 @@ class TestArchiver(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 class TestDecryptDocuments(FileSystemAssertsMixin, TestCase):
     @mock.patch("documents.management.commands.decrypt_documents.input")
     def test_decrypt(self, m):
-        media_dir = tempfile.mkdtemp()
-        originals_dir = Path(media_dir) / "documents" / "originals"
-        thumb_dir = Path(media_dir) / "documents" / "thumbnails"
+        media_dir = Path(tempfile.mkdtemp()).resolve()
+        originals_dir = media_dir / "documents" / "originals"
+        thumb_dir = media_dir / "documents" / "thumbnails"
         originals_dir.mkdir(parents=True, exist_ok=True)
         thumb_dir.mkdir(parents=True, exist_ok=True)
 
