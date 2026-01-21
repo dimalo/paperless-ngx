@@ -231,7 +231,12 @@ class DocumentConsumeDelayMixin:
     """
 
     def setUp(self) -> None:
-        self.consume_file_patcher = mock.patch("documents.tasks.consume_file.delay")
+        from documents.management.commands import document_consumer
+
+        self.consume_file_patcher = mock.patch.object(
+            document_consumer.consume_file,
+            "delay",
+        )
         self.consume_file_mock = self.consume_file_patcher.start()
         super().setUp()
 

@@ -3,7 +3,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from fnmatch import filter
 from pathlib import Path
-from pathlib import PurePath
 from threading import Event
 from time import monotonic
 from time import sleep
@@ -26,7 +25,11 @@ from documents.tasks import consume_file
 try:
     from inotifyrecursive import INotify
     from inotifyrecursive import flags
-except ImportError:  # pragma: no cover
+
+    # Test if inotify is actually available (e.g. not on macOS)
+    _test_inotify = INotify()
+    _test_inotify.close()
+except (ImportError, AttributeError, OSError):  # pragma: no cover
     INotify = flags = None
 
 logger = logging.getLogger("paperless.management.consumer")
@@ -41,7 +44,12 @@ def _tags_from_path(filepath: Path) -> list[int]:
     """
     db.close_old_connections()
     tag_ids = set()
-    path_parts = filepath.relative_to(settings.CONSUMPTION_DIR).parent.parts
+    path_parts = (
+        Path(filepath)
+        .resolve()
+        .relative_to(Path(settings.CONSUMPTION_DIR).resolve())
+        .parent.parts
+    )
     for part in path_parts:
         tag_ids.add(
             Tag.objects.get_or_create(name__iexact=part, defaults={"name": part})[0].pk,
@@ -59,7 +67,9 @@ def _is_ignored(filepath: Path) -> bool:
     """
     # Trim out the consume directory, leaving only filename and it's
     # path relative to the consume directory
-    filepath_relative = PurePath(filepath).relative_to(settings.CONSUMPTION_DIR)
+    filepath_relative = (
+        Path(filepath).resolve().relative_to(Path(settings.CONSUMPTION_DIR).resolve())
+    )
 
     # March through the components of the path, including directories and the filename
     # looking for anything matching

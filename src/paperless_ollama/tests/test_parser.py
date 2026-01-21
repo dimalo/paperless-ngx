@@ -55,6 +55,11 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 "_convert_pdf_pages_to_images",
                 return_value=[Path("dummy.png")],
             ) as mock_convert,
+            mock.patch.object(
+                parser,
+                "_process_image",
+                return_value="Page 1 text.",
+            ) as mock_process,
         ):
             mock_response = mock.Mock()
             mock_response.raise_for_status.return_value = None
@@ -72,6 +77,7 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 self.assertEqual(parser.text, "Page 1 text.")
                 self.assertEqual(parser.archive_path, pdf_path)
                 mock_convert.assert_called_once_with(pdf_path)
+                mock_process.assert_called_once_with(Path("dummy.png"))
             finally:
                 pdf_path.unlink(missing_ok=True)
 

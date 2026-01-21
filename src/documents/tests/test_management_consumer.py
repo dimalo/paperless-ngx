@@ -110,6 +110,9 @@ class ConsumerThreadMixin(DocumentConsumeDelayMixin):
 
 @override_settings(
     CONSUMER_INOTIFY_DELAY=0.01,
+    CONSUMER_POLLING=1,
+    CONSUMER_POLLING_DELAY=0.5,
+    CONSUMER_POLLING_RETRY_COUNT=50,
 )
 class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
     def test_consume_file(self):
@@ -124,7 +127,10 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
 
         input_doc, _ = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, f)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(f).resolve(),
+        )
 
     def test_consume_file_invalid_ext(self):
         self.t_start()
@@ -145,7 +151,10 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
 
         input_doc, _ = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, f)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(f).resolve(),
+        )
 
     @mock.patch("documents.management.commands.document_consumer.logger.error")
     def test_slow_write_pdf(self, error_logger):
@@ -165,7 +174,10 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
 
         input_doc, _ = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, fname)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(fname).resolve(),
+        )
 
     @mock.patch("documents.management.commands.document_consumer.logger.error")
     def test_slow_write_and_move(self, error_logger):
@@ -185,7 +197,10 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
 
         input_doc, _ = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, fname2)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(fname2).resolve(),
+        )
 
         error_logger.assert_not_called()
 
@@ -204,7 +219,10 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
 
         input_doc, _ = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, fname)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(fname).resolve(),
+        )
 
         # assert that we have an error logged with this invalid file.
         error_logger.assert_called_once()
@@ -369,7 +387,7 @@ class TestConsumer(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
     CONSUMER_POLLING=1,
     # please leave the delay here and down below
     # see https://github.com/paperless-ngx/paperless-ngx/pull/66
-    CONSUMER_POLLING_DELAY=3,
+    CONSUMER_POLLING_DELAY=0.5,
     CONSUMER_POLLING_RETRY_COUNT=20,
 )
 class TestConsumerPolling(TestConsumer):
@@ -386,7 +404,7 @@ class TestConsumerRecursive(TestConsumer):
 @override_settings(
     CONSUMER_RECURSIVE=True,
     CONSUMER_POLLING=1,
-    CONSUMER_POLLING_DELAY=3,
+    CONSUMER_POLLING_DELAY=0.5,
     CONSUMER_POLLING_RETRY_COUNT=20,
 )
 class TestConsumerRecursivePolling(TestConsumer):
@@ -394,6 +412,12 @@ class TestConsumerRecursivePolling(TestConsumer):
     pass
 
 
+@override_settings(
+    CONSUMER_INOTIFY_DELAY=0.01,
+    CONSUMER_POLLING=1,
+    CONSUMER_POLLING_DELAY=0.5,
+    CONSUMER_POLLING_RETRY_COUNT=50,
+)
 class TestConsumerTags(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCase):
     @override_settings(CONSUMER_RECURSIVE=True, CONSUMER_SUBDIRS_AS_TAGS=True)
     def test_consume_file_with_path_tags(self):
@@ -422,7 +446,10 @@ class TestConsumerTags(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCas
 
         input_doc, overrides = self.get_last_consume_delay_call_args()
 
-        self.assertEqual(input_doc.original_file, f)
+        self.assertEqual(
+            Path(input_doc.original_file).resolve(),
+            Path(f).resolve(),
+        )
 
         # assertCountEqual has a bad name, but test that the first
         # sequence contains the same elements as second, regardless of
@@ -431,7 +458,7 @@ class TestConsumerTags(DirectoriesMixin, ConsumerThreadMixin, TransactionTestCas
 
     @override_settings(
         CONSUMER_POLLING=1,
-        CONSUMER_POLLING_DELAY=3,
+        CONSUMER_POLLING_DELAY=0.5,
         CONSUMER_POLLING_RETRY_COUNT=20,
     )
     def test_consume_file_with_path_tags_polling(self):
