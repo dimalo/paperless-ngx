@@ -45,6 +45,7 @@ export enum ConfigOptionType {
   JSON = 'json',
   File = 'file',
   Password = 'password',
+  Header = 'header',
 }
 
 export const ConfigCategory = {
@@ -90,6 +91,141 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.Select,
     choices: mapToItems(OutputTypeConfig),
     config_key: 'PAPERLESS_OCR_OUTPUT_TYPE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_engine',
+    title: $localize`OCR Engine`,
+    type: ConfigOptionType.Select,
+    choices: [
+      { id: 'tesseract', name: 'Tesseract' },
+      { id: 'docling', name: 'Docling' },
+      { id: 'ollama', name: 'Ollama' },
+    ],
+    config_key: 'PAPERLESS_OCR_ENGINE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_image_enhancement_header',
+    title: $localize`Image Enhancements`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen',
+    title: $localize`Sharpen Images`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OCR_SHARPEN',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_radius',
+    title: $localize`Sharpen Radius`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_RADIUS',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_percent',
+    title: $localize`Sharpen Percent`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_PERCENT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_threshold',
+    title: $localize`Sharpen Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_THRESHOLD',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_custom_alignment',
+    title: $localize`Custom Alignment`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OCR_CUSTOM_ALIGNMENT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_alignment_threshold',
+    title: $localize`Alignment Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_ALIGNMENT_THRESHOLD',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_header',
+    title: $localize`Docling Settings`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_endpoint',
+    title: $localize`Docling Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_ENDPOINT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_language',
+    title: $localize`Docling Language`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_LANGUAGE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_timeout',
+    title: $localize`Docling Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_DOCLING_TIMEOUT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_force_ocr',
+    title: $localize`Force OCR`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_DOCLING_FORCE_OCR',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_header',
+    title: $localize`Ollama Settings`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_endpoint',
+    title: $localize`Ollama Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_OLLAMA_ENDPOINT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_model',
+    title: $localize`Ollama Model`,
+    type: ConfigOptionType.Select,
+    choices: [],
+    config_key: 'PAPERLESS_OLLAMA_MODEL',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_timeout',
+    title: $localize`Ollama Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OLLAMA_TIMEOUT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_prompt_template',
+    title: $localize`Ollama Prompt Template`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_OLLAMA_PROMPT_TEMPLATE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'tesseract_header',
+    title: $localize`Tesseract Settings`,
+    type: ConfigOptionType.Header,
     category: ConfigCategory.OCR,
   },
   {
@@ -272,6 +408,12 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.Barcode,
   },
   {
+    key: 'ai_general_header',
+    title: $localize`General AI Settings`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
     key: 'ai_enabled',
     title: $localize`AI Enabled`,
     type: ConfigOptionType.Boolean,
@@ -323,6 +465,88 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,
   },
+  {
+    key: 'ai_autotag_header',
+    title: $localize`Auto Tagging & Classification`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'enable_auto_ai_enhancement',
+    title: $localize`Enable Auto Enhancement`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_AI_AUTO_ASSIGN',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'confidence_threshold',
+    title: $localize`Confidence Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_CONFIDENCE_THRESHOLD',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'auto_create_threshold',
+    title: $localize`Auto Create Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_AUTO_CREATE_THRESHOLD',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'ai_safety_header',
+    title: $localize`Safety & Operations`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rollback_enabled',
+    title: $localize`Enable Rollback`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'ROLLBACK_ENABLED',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rollback_retention_days',
+    title: $localize`Rollback Retention (Days)`,
+    type: ConfigOptionType.Number,
+    config_key: 'ROLLBACK_RETENTION_DAYS',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'audit_log_level',
+    title: $localize`Audit Log Level`,
+    type: ConfigOptionType.String,
+    config_key: 'AUDIT_LOG_LEVEL',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rate_limit_requests',
+    title: $localize`Rate Limit (Requests)`,
+    type: ConfigOptionType.Number,
+    config_key: 'RATE_LIMIT_REQUESTS',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rate_limit_window',
+    title: $localize`Rate Limit Window (Seconds)`,
+    type: ConfigOptionType.Number,
+    config_key: 'RATE_LIMIT_WINDOW',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'graceful_degradation',
+    title: $localize`Graceful Degradation`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'GRACEFUL_DEGRADATION',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'force_ai_update',
+    title: $localize`Force AI Update`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_AI_FORCE_UPDATE',
+    category: ConfigCategory.AI,
+  },
 ]
 
 export interface PaperlessConfig extends ObjectWithId {
@@ -358,5 +582,31 @@ export interface PaperlessConfig extends ObjectWithId {
   llm_backend: string
   llm_model: string
   llm_api_key: string
+
   llm_endpoint: string
+  ocr_engine: string
+  ocr_sharpen: boolean
+  ocr_sharpen_radius: number
+  ocr_sharpen_percent: number
+  ocr_sharpen_threshold: number
+  ocr_custom_alignment: boolean
+  ocr_alignment_threshold: number
+  docling_endpoint: string
+  docling_language: string
+  docling_timeout: number
+  docling_force_ocr: boolean
+  ollama_endpoint: string
+  ollama_model: string
+  ollama_timeout: number
+  ollama_prompt_template: string
+  enable_auto_ai_enhancement: boolean
+  confidence_threshold: number
+  auto_create_threshold: number
+  rollback_enabled: boolean
+  rollback_retention_days: number
+  audit_log_level: string
+  rate_limit_requests: number
+  rate_limit_window: number
+  graceful_degradation: boolean
+  force_ai_update: boolean
 }

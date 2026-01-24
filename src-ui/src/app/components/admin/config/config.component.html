@@ -14,35 +14,39 @@
                 <a ngbNavLink>{{category}}</a>
                 <ng-template ngbNavContent>
                     <div class="p-3">
-                        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+                        <div class="row g-2">
                             @for (option of getCategoryOptions(category); track option.key) {
-                                <div class="col">
-                                    <div class="card bg-light">
-                                        <div class="card-body">
-                                            <div class="card-title">
-                                                <h6>
-                                                    {{option.title}}
-                                                    <a class="btn btn-sm btn-link" title="Read the documentation about this setting" i18n-title [href]="getDocsUrl(option.config_key)" target="_blank" referrerpolicy="no-referrer">
-                                                        <i-bs  name="info-circle"></i-bs>
-                                                    </a>
-                                                </h6>
-                                            </div>
-                                            <div class="mb-n3">
-                                                @switch (option.type) {
-                                                    @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true"></pngx-input-select> }
-                                                    @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false"></pngx-input-number> }
-                                                    @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title></pngx-input-switch> }
-                                                    @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
-                                                    @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
-                                                    @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
-                                                    @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
+                                <div [class]="option.type === ConfigOptionType.Header ? 'col-12 mt-3 mb-2' : 'col-12 col-md-6 col-lg-4'">
+                                    @if (option.type === ConfigOptionType.Header) {
+                                        <h5 class="border-bottom pb-2 mb-0">{{option.title}}</h5>
+                                    } @else {
+                                        <div class="card bg-light h-100">
+                                            <div class="card-body">
+                                                <div class="card-title">
+                                                    <h6>
+                                                        {{option.title}}
+                                                        <a class="btn btn-sm btn-link" title="Read the documentation about this setting" i18n-title [href]="getDocsUrl(option.config_key)" target="_blank" referrerpolicy="no-referrer">
+                                                            <i-bs  name="info-circle"></i-bs>
+                                                        </a>
+                                                    </h6>
+                                                </div>
+                                                <div class="mb-n3">
+                                                    @switch (option.type) {
+                                                        @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true"></pngx-input-select> }
+                                                        @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false"></pngx-input-number> }
+                                                        @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title></pngx-input-switch> }
+                                                        @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
+                                                        @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
+                                                        @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
+                                                        @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
+                                                    }
+                                                </div>
+                                                @if (option.note) {
+                                                    <div class="form-text fst-italic">{{option.note}}</div>
                                                 }
                                             </div>
-                                            @if (option.note) {
-                                                <div class="form-text fst-italic">{{option.note}}</div>
-                                            }
                                         </div>
-                                    </div>
+                                    }
                                 </div>
                             }
                         </div>
