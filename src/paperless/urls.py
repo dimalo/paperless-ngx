@@ -56,6 +56,7 @@ from paperless.views import ProfileView
 from paperless.views import SocialAccountProvidersView
 from paperless.views import TOTPView
 from paperless.views import UserViewSet
+from paperless.views import OllamaProxyView
 from paperless_mail.views import MailAccountViewSet
 from paperless_mail.views import MailRuleViewSet
 from paperless_mail.views import OauthCallbackView
@@ -202,6 +203,11 @@ urlpatterns = [
                     "^status/",
                     SystemStatusView.as_view(),
                     name="system_status",
+                ),
+                re_path(
+                    "^ollama_proxy/",
+                    OllamaProxyView.as_view(),
+                    name="ollama_proxy",
                 ),
                 re_path(
                     "^trash/",

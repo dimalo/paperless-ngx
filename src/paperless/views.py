@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from pathlib import Path
+import requests
 
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
@@ -458,3 +459,28 @@ class SocialAccountProvidersView(GenericAPIView):
             ]
 
         return Response(sorted(resp, key=lambda p: p["name"]))
+
+
+class OllamaProxyView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        endpoint = request.query_params.get("endpoint")
+        if not endpoint:
+            return HttpResponseBadRequest("Missing endpoint parameter")
+
+        try:
+            # Ensure protocol
+            if not endpoint.startswith("http"):
+                endpoint = f"http://{endpoint}"
+            
+            # Strip trailing slash
+            if endpoint.endswith("/"):
+                endpoint = endpoint[:-1]
+
+            response = requests.get(f"{endpoint}/api/tags", timeout=5)
+            response.raise_for_status()
+            return Response(response.json())
+        except requests.RequestException as e:
+            return Response({"error": str(e)}, status=400)
+
