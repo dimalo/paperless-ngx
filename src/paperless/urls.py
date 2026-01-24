@@ -48,15 +48,16 @@ from documents.views import serve_logo
 from paperless.consumers import StatusConsumer
 from paperless.views import ApplicationConfigurationViewSet
 from paperless.views import DisconnectSocialAccountView
+from paperless.views import DoclingProxyView
 from paperless.views import FaviconView
 from paperless.views import GenerateAuthTokenView
 from paperless.views import GroupViewSet
+from paperless.views import OllamaProxyView
 from paperless.views import PaperlessObtainAuthTokenView
 from paperless.views import ProfileView
 from paperless.views import SocialAccountProvidersView
 from paperless.views import TOTPView
 from paperless.views import UserViewSet
-from paperless.views import OllamaProxyView
 from paperless_mail.views import MailAccountViewSet
 from paperless_mail.views import MailRuleViewSet
 from paperless_mail.views import OauthCallbackView
@@ -205,9 +206,14 @@ urlpatterns = [
                     name="system_status",
                 ),
                 re_path(
-                    "^ollama_proxy/",
+                    "^ollama_proxy/(?P<path>.*)$",
                     OllamaProxyView.as_view(),
                     name="ollama_proxy",
+                ),
+                re_path(
+                    "^docling_proxy/",
+                    DoclingProxyView.as_view(),
+                    name="docling_proxy",
                 ),
                 re_path(
                     "^trash/",

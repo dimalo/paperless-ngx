@@ -1184,11 +1184,8 @@ OCR_USER_ARGS = os.getenv("PAPERLESS_OCR_USER_ARGS")
 
 OCR_ENGINE = os.getenv("PAPERLESS_OCR_ENGINE", "tesseract")
 
-if OCR_ENGINE == "docling":
-    INSTALLED_APPS.append("paperless_docling.apps.PaperlessDoclingConfig")
-
-if OCR_ENGINE == "ollama":
-    INSTALLED_APPS.append("paperless_ollama.apps.PaperlessOllamaConfig")
+INSTALLED_APPS.append("paperless_docling.apps.PaperlessDoclingConfig")
+INSTALLED_APPS.append("paperless_ollama.apps.PaperlessOllamaConfig")
 
 OLLAMA_ENDPOINT = os.getenv("PAPERLESS_OLLAMA_ENDPOINT", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("PAPERLESS_OLLAMA_MODEL", "deepseek-ocr")

@@ -263,7 +263,10 @@ class TestImagePreprocessing(TestCase):
 
         image_path = self.parser.tempdir / "test_image.png"
         sharpened_path = self.parser.sharpen_image_pillow(image_path)
-        mock_sharpened.save.assert_called_once_with(sharpened_path, format=mock_img.format)
+        mock_sharpened.save.assert_called_once_with(
+            sharpened_path,
+            format=mock_img.format,
+        )
         mock_img.filter.assert_called_once()
 
     def test_preprocess_image_no_processing(self):

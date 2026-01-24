@@ -67,6 +67,10 @@ export class ToastService {
     this.show({ content: content, delay: delay })
   }
 
+  showWarning(content: string, delay: number = 5000) {
+    this.show({ content: content, delay: delay, classname: 'warning' })
+  }
+
   closeToast(toast: Toast) {
     let index = this.toasts.findIndex((t) => t.id == toast.id)
     if (index > -1) {

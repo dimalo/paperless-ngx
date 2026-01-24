@@ -49,7 +49,9 @@ class AutoEnhancementTestCase(TestCase):
     @patch("documents.utils.check_ai_rate_limit")
     @override_settings(PAPERLESS_AI_AUTO_ASSIGN=True)
     def test_ai_service_unavailable_graceful_degradation(
-        self, mock_rate_limit, mock_ai_classify,
+        self,
+        mock_rate_limit,
+        mock_ai_classify,
     ):
         """Test graceful degradation when AI service is unavailable."""
         mock_rate_limit.return_value = True
@@ -65,7 +67,9 @@ class AutoEnhancementTestCase(TestCase):
     @patch("documents.utils.check_ai_rate_limit")
     @override_settings(PAPERLESS_AI_AUTO_ASSIGN=True)
     def test_ai_service_unavailable_no_graceful_degradation(
-        self, mock_rate_limit, mock_ai_classify,
+        self,
+        mock_rate_limit,
+        mock_ai_classify,
     ):
         """Test that exception is raised when AI service fails and graceful degradation is disabled."""
         mock_rate_limit.return_value = True
@@ -173,7 +177,8 @@ class AutoEnhancementTestCase(TestCase):
 
         history = history_items.first()
         self.assertEqual(
-            history.applied_suggestions["title"]["value"], "High Confidence Title",
+            history.applied_suggestions["title"]["value"],
+            "High Confidence Title",
         )
         self.assertEqual(history.confidence_scores["title"], 0.9)
         self.assertEqual(history.applied_by, self.user)
@@ -218,10 +223,12 @@ class AutoEnhancementTestCase(TestCase):
 
         # Should not create history or review items
         self.assertEqual(
-            AISuggestionHistory.objects.filter(document=self.document).count(), 0,
+            AISuggestionHistory.objects.filter(document=self.document).count(),
+            0,
         )
         self.assertEqual(
-            AIReviewQueue.objects.filter(document=self.document).count(), 0,
+            AIReviewQueue.objects.filter(document=self.document).count(),
+            0,
         )
 
     def test_confidence_threshold_edge_cases(self):

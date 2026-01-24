@@ -53,6 +53,7 @@ dependencies = [
   "inotifyrecursive~=0.3",
   "jinja2~=3.1.5",
   "langdetect~=1.0.9",
+  "litellm>=1.59.8",
   "llama-index-core>=0.14.12",
   "llama-index-embeddings-huggingface>=0.6.1",
   "llama-index-embeddings-openai>=0.5.1",
@@ -109,6 +110,7 @@ dev = [
   { "include-group" = "docs" },
   { "include-group" = "testing" },
   { "include-group" = "lint" },
+  "accelerate>=1.12",
 ]
 
 docs = [

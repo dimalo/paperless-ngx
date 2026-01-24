@@ -1012,9 +1012,9 @@ Set `PAPERLESS_OCR_ENGINE=docling` to use this backend.
 
 #### Notes
 
-- API-based backend.
-- Supports PDF and image MIME types.
-- Performance considerations for large files (>10MB uses async polling).
+-   API-based backend.
+-   Supports PDF and image MIME types.
+-   Performance considerations for large files (>10MB uses async polling).
 
 ### Ollama OCR Backend
 
@@ -1073,9 +1073,9 @@ Set `PAPERLESS_OCR_ENGINE=ollama` to use this backend.
 
 #### Notes
 
-- API-based backend.
-- Supports image and PDF MIME types (PDFs converted to images per page).
-- Performance considerations for large files.
+-   API-based backend.
+-   Supports image and PDF MIME types (PDFs converted to images per page).
+-   Performance considerations for large files.
 
 ## Software tweaks {#software_tweaks}
 
@@ -2021,7 +2021,7 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
 ### Auto-Enhancement Configuration
 
-#### [`PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT}
+#### [`PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI\_\_ENABLE_AUTO_AI_ENHANCEMENT}
 
 : Enables automatic AI metadata enhancement during document consumption. When enabled, Paperless will use AI to suggest titles, tags, correspondents, document types, and storage paths for newly consumed documents.
 
@@ -2030,7 +2030,7 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
     Defaults to `false`.
 
-#### [`PAPERLESS_AI__CONFIDENCE_THRESHOLD=<float>`](#PAPERLESS_AI__CONFIDENCE_THRESHOLD) {#PAPERLESS_AI__CONFIDENCE_THRESHOLD}
+#### [`PAPERLESS_AI__CONFIDENCE_THRESHOLD=<float>`](#PAPERLESS_AI__CONFIDENCE_THRESHOLD) {#PAPERLESS_AI\_\_CONFIDENCE_THRESHOLD}
 
 : Minimum confidence score (0.0-1.0) required for automatic application of AI suggestions. Suggestions with confidence scores above this threshold will be automatically applied to documents during consumption.
 
@@ -2040,7 +2040,7 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
     Defaults to `0.7`.
 
-#### [`PAPERLESS_AI__AUTO_CREATE_THRESHOLD=<float>`](#PAPERLESS_AI__AUTO_CREATE_THRESHOLD) {#PAPERLESS_AI__AUTO_CREATE_THRESHOLD}
+#### [`PAPERLESS_AI__AUTO_CREATE_THRESHOLD=<float>`](#PAPERLESS_AI__AUTO_CREATE_THRESHOLD) {#PAPERLESS_AI\_\_AUTO_CREATE_THRESHOLD}
 
 : Minimum confidence score (0.0-1.0) required for automatic creation of new tags, correspondents, document types, and storage paths. If a suggested item doesn't exist and the confidence meets this threshold, it will be created automatically.
 
@@ -2052,7 +2052,7 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
 ### Review Queue Configuration
 
-#### [`PAPERLESS_AI__REVIEW_THRESHOLD_MIN=<float>`](#PAPERLESS_AI__REVIEW_THRESHOLD_MIN) {#PAPERLESS_AI__REVIEW_THRESHOLD_MIN}
+#### [`PAPERLESS_AI__REVIEW_THRESHOLD_MIN=<float>`](#PAPERLESS_AI__REVIEW_THRESHOLD_MIN) {#PAPERLESS_AI\_\_REVIEW_THRESHOLD_MIN}
 
 : Minimum confidence score (0.0-1.0) for suggestions to be queued for manual review. Suggestions with confidence scores in the review range will be added to the AI review queue instead of being auto-applied or ignored.
 
@@ -2063,13 +2063,13 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
 ### Safety and Rate Limiting
 
-#### [`PAPERLESS_AI__GRACEFUL_DEGRADATION=<bool>`](#PAPERLESS_AI__GRACEFUL_DEGRADATION) {#PAPERLESS_AI__GRACEFUL_DEGRADATION}
+#### [`PAPERLESS_AI__GRACEFUL_DEGRADATION=<bool>`](#PAPERLESS_AI__GRACEFUL_DEGRADATION) {#PAPERLESS_AI\_\_GRACEFUL_DEGRADATION}
 
 : Enables graceful degradation when AI services are unavailable. When enabled, document consumption will continue normally if AI services fail, with warnings logged. When disabled, AI service failures will cause consumption to fail.
 
     Defaults to `true`.
 
-#### [`PAPERLESS_AI__RATE_LIMIT_REQUESTS=<int>`](#PAPERLESS_AI__RATE_LIMIT_REQUESTS) {#PAPERLESS_AI__RATE_LIMIT_REQUESTS}
+#### [`PAPERLESS_AI__RATE_LIMIT_REQUESTS=<int>`](#PAPERLESS_AI__RATE_LIMIT_REQUESTS) {#PAPERLESS_AI\_\_RATE_LIMIT_REQUESTS}
 
 : Maximum number of AI requests allowed per user per hour. This helps prevent excessive API usage and costs.
 
@@ -2080,7 +2080,7 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 
 ### Rollback Configuration
 
-#### [`PAPERLESS_AI__ENABLE_ROLLBACK=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI__ENABLE_ROLLBACK}
+#### [`PAPERLESS_AI__ENABLE_ROLLBACK=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI\_\_ENABLE_ROLLBACK}
 
 : Enables rollback functionality for AI-applied suggestions. When enabled, users can undo AI-applied metadata changes through the admin interface.
 
@@ -2098,8 +2098,8 @@ Paperless-ngx includes AI-powered automatic metadata enhancement features that c
 2. Configure your AI backend (`PAPERLESS_AI_LLM_BACKEND`) and model
 3. Enable auto-enhancement: `PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=true`
 4. Adjust confidence thresholds based on your requirements:
-   - Lower thresholds (e.g., 0.6) for more automation but higher risk of errors
-   - Higher thresholds (e.g., 0.8) for higher accuracy but more manual review
+    - Lower thresholds (e.g., 0.6) for more automation but higher risk of errors
+    - Higher thresholds (e.g., 0.8) for higher accuracy but more manual review
 
 #### Example Configuration
 
@@ -2124,18 +2124,18 @@ PAPERLESS_AI__ENABLE_ROLLBACK=true
 
 #### Security Considerations
 
-- **API Keys**: Store AI API keys securely and rotate them regularly
-- **Data Privacy**: AI services may store or process your document data
-- **Rate Limiting**: Monitor usage to avoid unexpected costs
-- **Permissions**: Only trusted users should have access to AI review and rollback features
-- **Audit Trail**: All AI actions are logged and can be audited
+-   **API Keys**: Store AI API keys securely and rotate them regularly
+-   **Data Privacy**: AI services may store or process your document data
+-   **Rate Limiting**: Monitor usage to avoid unexpected costs
+-   **Permissions**: Only trusted users should have access to AI review and rollback features
+-   **Audit Trail**: All AI actions are logged and can be audited
 
 #### Troubleshooting
 
 **Common Issues:**
 
-- **High rate of review queue items**: Lower `PAPERLESS_AI__CONFIDENCE_THRESHOLD` or increase `PAPERLESS_AI__REVIEW_THRESHOLD_MIN`
-- **Too many auto-created items**: Increase `PAPERLESS_AI__AUTO_CREATE_THRESHOLD`
-- **AI service timeouts**: Check network connectivity and consider increasing API timeouts
-- **Permission errors**: Ensure users have appropriate permissions for document editing
-- **Rate limit exceeded**: Increase `PAPERLESS_AI__RATE_LIMIT_REQUESTS` or implement usage monitoring
+-   **High rate of review queue items**: Lower `PAPERLESS_AI__CONFIDENCE_THRESHOLD` or increase `PAPERLESS_AI__REVIEW_THRESHOLD_MIN`
+-   **Too many auto-created items**: Increase `PAPERLESS_AI__AUTO_CREATE_THRESHOLD`
+-   **AI service timeouts**: Check network connectivity and consider increasing API timeouts
+-   **Permission errors**: Ensure users have appropriate permissions for document editing
+-   **Rate limit exceeded**: Increase `PAPERLESS_AI__RATE_LIMIT_REQUESTS` or implement usage monitoring

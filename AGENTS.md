@@ -15,6 +15,7 @@ This file contains guidelines and commands for AI agents working on the Paperles
 ## Development Commands
 
 ### Package Management
+
 ```bash
 # Install all dependencies (including dev dependencies and testing)
 uv sync --group dev
@@ -29,6 +30,7 @@ uv sync --group postgres  # or --group mariadb
 ### Testing
 
 #### Run All Tests
+
 ```bash
 # Run all tests with coverage
 uv run pytest
@@ -66,6 +68,7 @@ uv run pytest -n 1 src/documents/tests/test_models.py
 ```
 
 #### Test Configuration
+
 - Tests are configured in `pyproject.toml` under `[tool.pytest.ini_options]`
 - Coverage reporting: HTML and XML formats
 - Test paths: `src/documents/tests/`, `src/paperless*/tests/`
@@ -74,6 +77,7 @@ uv run pytest -n 1 src/documents/tests/test_models.py
 ### Linting and Code Quality
 
 #### Run All Linting
+
 ```bash
 # Run pre-commit on all files (includes all linting/formatting)
 pre-commit run --all-files
@@ -118,6 +122,7 @@ uv run python manage.py test
 ### Docker Building
 
 #### Build Local Development Container
+
 ```bash
 # Build the Paperless-ngx Docker container locally
 docker build --file Dockerfile --tag paperless:local .
@@ -127,21 +132,26 @@ docker buildx build --platform linux/amd64,linux/arm64 --file Dockerfile --tag p
 ```
 
 #### Docker Compose Environments
+
 The project includes multiple docker-compose configurations for different database setups:
+
 - `docker/compose/docker-compose.sqlite.yml` - SQLite database
 - `docker/compose/docker-compose.postgres.yml` - PostgreSQL database
 - `docker/compose/docker-compose.mariadb.yml` - MariaDB database
 - Add `-tika.yml` suffix for versions with Tika OCR integration
 
 #### Build Arguments
+
 - `PNGX_TAG_VERSION`: Version tag for development builds (dev, beta, feature branches)
 
 ### OCR Backend Setup
 
 #### Docling Backend
+
 Paperless-ngx supports Docling as an OCR backend via docling-serve API service.
 
 **Setup:**
+
 1. Run docling-serve in Docker:
    ```bash
    docker run --name docling-serve -p 5001:5001 ds4sd/docling-serve:latest
@@ -156,28 +166,34 @@ Paperless-ngx supports Docling as an OCR backend via docling-serve API service.
    ```
 
 **Settings:**
+
 - `PAPERLESS_DOCLING_ENDPOINT`: URL of the docling-serve instance (default: http://localhost:5001)
 - `PAPERLESS_DOCLING_TIMEOUT`: Request timeout in seconds (default: 30)
 - `PAPERLESS_DOCLING_FORCE_OCR`: Force OCR even on documents with existing text (default: false)
 - `PAPERLESS_DOCLING_LANGUAGE`: OCR language for text recognition (default: eng)
 
 **API Details:**
+
 - Uses `/v1/convert/file` for sync processing
 - Uses `/v1/convert/file/async` with polling for large files (>10MB)
 - Supports PDF and image MIME types
 - Extracts `text_content` from JSON response
 
 #### Ollama Backend
+
 Paperless-ngx supports Ollama as an OCR backend using the deepseek-ocr model.
 
 **Setup:**
+
 1. Install Ollama:
+
    ```bash
    # On Linux/macOS
    curl -fsSL https://ollama.ai/install.sh | sh
 
    # Or download from https://ollama.ai/download
    ```
+
 2. Pull the deepseek-ocr model:
    ```bash
    ollama pull deepseek-ocr
@@ -196,18 +212,21 @@ Paperless-ngx supports Ollama as an OCR backend using the deepseek-ocr model.
    ```
 
 **Settings:**
+
 - `PAPERLESS_OLLAMA_ENDPOINT`: URL of the Ollama instance (default: http://localhost:11434)
 - `PAPERLESS_OLLAMA_MODEL`: Model name (default: deepseek-ocr)
 - `PAPERLESS_OLLAMA_TIMEOUT`: Request timeout in seconds (default: 30)
 - `PAPERLESS_OLLAMA_PROMPT_TEMPLATE`: Custom prompt template (default: "")
 
 **API Details:**
+
 - Uses `POST /api/chat` endpoint
 - Sends base64 encoded images in messages with user content
 - Supports image and PDF MIME types (PDFs converted to images per page)
 - Extracts `content` from message response
 
 #### Parser Selection Logic
+
 The `get_parser_class_for_mime_type()` function in `src/documents/parsers.py` selects the appropriate parser based on the `PAPERLESS_OCR_ENGINE` setting:
 
 - If `PAPERLESS_OCR_ENGINE` is set to `docling`, prioritizes `DoclingDocumentParser`.
@@ -221,6 +240,7 @@ This ensures that when a specific OCR backend is configured, it is used for supp
 ### Python Code Style
 
 #### General Rules
+
 - **Line Length**: 88 characters (ruff default)
 - **Indentation**: 4 spaces
 - **Imports**: Use absolute imports, sorted with ruff
@@ -230,6 +250,7 @@ This ensures that when a specific OCR backend is configured, it is used for supp
 - **Type Hints**: Required for new code, use modern typing syntax
 
 #### Import Organization
+
 ```python
 # Standard library imports
 import os
@@ -248,6 +269,7 @@ from documents.utils import process_file
 ```
 
 #### Class and Function Definitions
+
 ```python
 class DocumentModel(models.Model):
     """Document model for storing scanned documents."""
@@ -272,6 +294,7 @@ class DocumentModel(models.Model):
 ```
 
 #### Django Model Patterns
+
 - Use `ModelWithOwner` for user-owned models
 - Implement proper `__str__` methods
 - Use verbose names for admin interface
@@ -279,6 +302,7 @@ class DocumentModel(models.Model):
 - Use soft deletes with `SoftDeleteModel` when needed
 
 #### Error Handling
+
 ```python
 try:
     document = Document.objects.get(pk=document_id)
@@ -290,12 +314,14 @@ except ValidationError as e:
 ```
 
 ### JavaScript/TypeScript Style (Frontend)
+
 - Follow Prettier formatting (configured in pre-commit)
 - Use ES6+ syntax
 - Consistent quote style (configured in Prettier)
 - Import organization with prettier-plugin-organize-imports
 
 ### File Structure
+
 - **Python**: `src/` directory
 - **Frontend**: `src-ui/` directory (separate project)
 - **Tests**: `tests/` subdirectories in each module
@@ -305,6 +331,7 @@ except ValidationError as e:
 ### Naming Conventions
 
 #### Python
+
 - **Classes**: PascalCase (e.g., `DocumentProcessor`)
 - **Functions/Methods**: snake_case (e.g., `process_document`)
 - **Constants**: UPPER_CASE (e.g., `MAX_FILE_SIZE`)
@@ -312,12 +339,14 @@ except ValidationError as e:
 - **Modules**: snake_case (e.g., `document_utils.py`)
 
 #### Django Specific
+
 - **Models**: Singular nouns (e.g., `Document`, not `Documents`)
 - **Model Fields**: snake_case (e.g., `created_at`, `is_active`)
 - **URLs**: kebab-case in patterns (e.g., `document-detail`)
 - **Template Names**: snake_case (e.g., `document_list.html`)
 
 #### Database
+
 - **Table Names**: Django auto-generates (appname_modelname)
 - **Column Names**: snake_case
 - **Indexes**: descriptive names with `_idx` suffix
@@ -325,6 +354,7 @@ except ValidationError as e:
 ### Testing Patterns
 
 #### Unit Tests
+
 ```python
 from django.test import TestCase
 from documents.tests.factories import DocumentFactory
@@ -338,11 +368,13 @@ class DocumentModelTest(TestCase):
 ```
 
 #### Factory Usage
+
 - Use Factory Boy factories in `tests/factories.py`
 - Factories provide consistent test data
 - Override specific attributes as needed
 
 #### Test File Organization
+
 - Tests mirror source structure: `src/app/tests/test_feature.py`
 - Test classes inherit from `TestCase`
 - Test methods start with `test_`
@@ -351,6 +383,7 @@ class DocumentModelTest(TestCase):
 ### Security Best Practices
 
 #### Django Security
+
 - Use Django's built-in authentication
 - Validate all user inputs
 - Use `get_object_or_404()` for database queries
@@ -358,12 +391,14 @@ class DocumentModelTest(TestCase):
 - Use HTTPS in production
 
 #### File Handling
+
 - Validate file types and sizes
 - Use safe file paths (pathvalidate library)
 - Avoid directory traversal attacks
 - Clean up temporary files
 
 #### Data Protection
+
 - Implement audit logging where sensitive
 - Use soft deletes for user data
 - Encrypt sensitive stored data
@@ -372,12 +407,14 @@ class DocumentModelTest(TestCase):
 ### Git Workflow
 
 #### Commit Messages
+
 - Use imperative mood: "Add feature" not "Added feature"
 - Start with capital letter
 - Keep first line under 50 characters
 - Add detailed description for complex changes
 
 #### Branching
+
 - Feature branches: `feature/description`
 - Bug fixes: `fix/issue-description`
 - Hotfixes: `hotfix/critical-issue`
@@ -385,18 +422,21 @@ class DocumentModelTest(TestCase):
 ### Performance Considerations
 
 #### Database Queries
+
 - Use `select_related()` and `prefetch_related()` for joins
 - Implement proper indexing
 - Use Django's caching framework
 - Avoid N+1 query problems
 
 #### File Processing
+
 - Process files asynchronously with Celery
 - Use streaming for large file downloads
 - Implement proper cleanup of temporary files
 - Cache expensive operations
 
 ### Internationalization (i18n)
+
 - Use Django's `gettext_lazy` for model strings
 - Mark user-facing strings with `_()`
 - Use `ugettext_lazy` for plurals
@@ -405,6 +445,7 @@ class DocumentModelTest(TestCase):
 ## Pre-commit Hooks
 
 The following hooks run automatically:
+
 - `ruff-check`: Linting and import sorting
 - `ruff-format`: Code formatting
 - `pyproject-fmt`: pyproject.toml formatting
@@ -416,12 +457,14 @@ The following hooks run automatically:
 ## CI/CD Pipeline
 
 ### Backend Tests
+
 - Runs on Python 3.10, 3.11, 3.12
 - Includes coverage reporting
 - Uses Docker Compose for test services
 - Parallel test execution
 
 ### Linting
+
 - Pre-commit checks on all files
 - Runs on every push and PR
 - Includes all configured hooks
@@ -429,6 +472,7 @@ The following hooks run automatically:
 ## Environment Setup
 
 ### Development Environment
+
 ```bash
 # Clone repository
 git clone https://github.com/paperless-ngx/paperless-ngx.git
@@ -452,6 +496,7 @@ uv run python manage.py runserver
 ```
 
 ### Testing Environment
+
 ```bash
 # Install test dependencies
 uv sync --group dev
@@ -466,18 +511,21 @@ uv run pytest --cov
 ## Troubleshooting
 
 ### Common Issues
+
 - **Import errors**: Ensure you're in the correct directory (`src/` for Django commands)
 - **Database connection**: Check Docker services are running for tests
 - **Permission errors**: Use proper file permissions for document storage
 - **Memory issues**: Large documents may require increased limits
 
 ### Debugging
+
 - Use Django Debug Toolbar in development
 - Enable SQL query logging: `LOGGING['loggers']['django.db.backends'] = {'level': 'DEBUG'}`
 - Use `pdb` or `ipdb` for interactive debugging
 - Check logs in `src/paperless.log`
 
 ## Resources
+
 - [Django Documentation](https://docs.djangoproject.com/)
 - [Paperless-ngx Docs](https://docs.paperless-ngx.com/)
 - [Ruff Rules](https://docs.astral.sh/ruff/rules/)

@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from pathlib import Path
-import requests
 
+import requests
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.base.internal.flows import delete_and_cleanup
@@ -464,6 +464,52 @@ class SocialAccountProvidersView(GenericAPIView):
 class OllamaProxyView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
+    def _get_endpoint(self, request):
+        endpoint = request.query_params.get("endpoint")
+        if not endpoint:
+            from paperless.config import OllamaConfig
+
+            config = OllamaConfig()
+            endpoint = config.endpoint
+
+        if not endpoint:
+            return None
+
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+
+        return endpoint.rstrip("/")
+
+    def get(self, request, path=None, *args, **kwargs):
+        endpoint = self._get_endpoint(request)
+        if not endpoint:
+            return HttpResponseBadRequest("Ollama endpoint not configured")
+
+        path = path or "api/tags"
+        try:
+            url = f"{endpoint}/{path}"
+            response = requests.get(url, params=request.GET, timeout=30)
+            return Response(response.json(), status=response.status_code)
+        except requests.RequestException as e:
+            return Response({"error": str(e)}, status=400)
+
+    def post(self, request, path=None, *args, **kwargs):
+        endpoint = self._get_endpoint(request)
+        if not endpoint:
+            return HttpResponseBadRequest("Ollama endpoint not configured")
+
+        path = path or "api/generate"
+        try:
+            url = f"{endpoint}/{path}"
+            response = requests.post(url, json=request.data, timeout=120)
+            return Response(response.json(), status=response.status_code)
+        except requests.RequestException as e:
+            return Response({"error": str(e)}, status=400)
+
+
+class DoclingProxyView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, *args, **kwargs):
         endpoint = request.query_params.get("endpoint")
         if not endpoint:
@@ -473,14 +519,29 @@ class OllamaProxyView(GenericAPIView):
             # Ensure protocol
             if not endpoint.startswith("http"):
                 endpoint = f"http://{endpoint}"
-            
+
             # Strip trailing slash
             if endpoint.endswith("/"):
                 endpoint = endpoint[:-1]
 
-            response = requests.get(f"{endpoint}/api/tags", timeout=5)
-            response.raise_for_status()
-            return Response(response.json())
+            # Try health endpoint first
+            try:
+                response = requests.get(f"{endpoint}/v1/health", timeout=5)
+                response.raise_for_status()
+                return Response(
+                    {"status": "ok", "detail": "Connected to Docling Health Endpoint"},
+                )
+            except requests.RequestException:
+                # Fallback to root if health endpoint missing
+                response = requests.get(endpoint, timeout=5)
+                # Docling server might return 404 on root but connection works
+                # We consider connection success if we get a response
+                return Response(
+                    {
+                        "status": "ok",
+                        "detail": f"Connected (Status {response.status_code})",
+                    },
+                )
+
         except requests.RequestException as e:
             return Response({"error": str(e)}, status=400)
-

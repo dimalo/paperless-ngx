@@ -156,6 +156,8 @@ def consume_file(
     input_doc: ConsumableDocument,
     overrides: DocumentMetadataOverrides | None = None,
 ):
+    logger.info(f"Starting consumption of {input_doc.original_file}")
+
     # Default no overrides
     if overrides is None:
         overrides = DocumentMetadataOverrides()

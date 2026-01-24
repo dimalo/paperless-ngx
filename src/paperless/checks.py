@@ -242,4 +242,24 @@ def ocr_dependencies_check(app_configs, **kwargs):
             msgs.append(
                 Error("Docling is not installed but OCR_ENGINE is set to docling"),
             )
+    elif settings.OCR_ENGINE == "docling_server":
+        try:
+            import httpx
+
+            # Ping the endpoint to check connectivity
+            # Assuming standard status endpoint or just root
+            resp = httpx.get(f"{settings.DOCLING_ENDPOINT}/v1/health", timeout=5)
+            if resp.status_code != 200:
+                # Try root if health fails (some versions might differ)
+                resp = httpx.get(settings.DOCLING_ENDPOINT, timeout=5)
+                if resp.status_code >= 400 and resp.status_code != 404:
+                    msgs.append(
+                        Warning(f"Docling server returned status {resp.status_code}"),
+                    )
+        except Exception as e:
+            msgs.append(
+                Warning(
+                    f"Cannot connect to Docling server at {settings.DOCLING_ENDPOINT}: {e}",
+                ),
+            )
     return msgs

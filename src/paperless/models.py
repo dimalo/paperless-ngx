@@ -344,7 +344,8 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=16,
         choices=[
             ("tesseract", _("Tesseract")),
-            ("docling", _("Docling")),
+            ("docling", _("Docling (Local)")),
+            ("docling_server", _("Docling Server")),
             ("ollama", _("Ollama")),
         ],
         default="tesseract",

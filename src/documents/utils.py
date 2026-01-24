@@ -372,6 +372,10 @@ def run_subprocess(
 
     proc_name = arguments[0]
 
+    if logger:
+        # Log before execution to catch hangs
+        logger.info(f"Executing: {' '.join(str(a) for a in arguments)}")
+
     completed_proc = run(args=arguments, env=env, capture_output=True, check=False)
 
     if logger:

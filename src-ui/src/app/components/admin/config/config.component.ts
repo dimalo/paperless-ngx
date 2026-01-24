@@ -1,4 +1,5 @@
 import { AsyncPipe } from '@angular/common'
+import { HttpClient } from '@angular/common/http'
 import { Component, OnDestroy, OnInit, inject } from '@angular/core'
 import {
   AbstractControl,
@@ -15,9 +16,10 @@ import {
   Observable,
   Subscription,
   first,
-  takeUntil,
   merge,
+  takeUntil,
 } from 'rxjs'
+import { debounceTime, switchMap } from 'rxjs/operators'
 import {
   ConfigCategory,
   ConfigOption,
@@ -26,10 +28,9 @@ import {
   PaperlessConfigOptions,
 } from 'src/app/data/paperless-config'
 import { ConfigService } from 'src/app/services/config.service'
+import { OllamaService } from 'src/app/services/ollama.service'
 import { SettingsService } from 'src/app/services/settings.service'
 import { ToastService } from 'src/app/services/toast.service'
-import { OllamaService } from 'src/app/services/ollama.service'
-import { debounceTime, switchMap } from 'rxjs/operators'
 import { FileComponent } from '../../common/input/file/file.component'
 import { NumberComponent } from '../../common/input/number/number.component'
 import { PasswordComponent } from '../../common/input/password/password.component'
@@ -60,11 +61,13 @@ import { LoadingComponentWithPermissions } from '../../loading-component/loading
 })
 export class ConfigComponent
   extends LoadingComponentWithPermissions
-  implements OnInit, OnDestroy, DirtyComponent {
+  implements OnInit, OnDestroy, DirtyComponent
+{
   private configService = inject(ConfigService)
   private toastService = inject(ToastService)
   private settingsService = inject(SettingsService)
   private ollamaService = inject(OllamaService)
+  private http = inject(HttpClient)
 
   public readonly ConfigOptionType = ConfigOptionType
 
@@ -142,49 +145,60 @@ export class ConfigComponent
     merge(
       this.configForm.get('ollama_endpoint')?.valueChanges,
       this.configForm.get('ocr_engine')?.valueChanges
-    ).pipe(
-      takeUntil(this.unsubscribeNotifier),
-      debounceTime(500),
-      switchMap(() => {
-        const engine = this.configForm.get('ocr_engine')?.value
-        const endpoint = this.configForm.get('ollama_endpoint')?.value
-        if (engine === 'ollama' && endpoint) {
-          return this.ollamaService.getModels(endpoint)
-        }
-        return []
-      })
-    ).subscribe({
-      next: (models) => {
-        const modelOption = PaperlessConfigOptions.find(o => o.key === 'ollama_model')
-        if (modelOption) {
-          modelOption.choices = models
-          // Only show toast if we actually returned models (meaning fetch happened)
-          // To avoid spamming on every keypress if returning empty array above.
-          // Wait, 'models' will be empty array if condition false OR if fetch returned empty.
-          // We can distinguish by context or just check length.
-          // Ideally we only want to show toast if we *attempted* a fetch.
-          // But here we are just returning empty array if no fetch.
-          // A better pattern: filter BEFORE switchMap?
-          // If I filter, I won't reset the choices if engine changes away from ollama?
-          // Actually, if engine changes to Tesseract, we probably don't care about ollama_model choices.
-          if (models.length > 0) {
-            this.toastService.showInfo($localize`Found ${models.length} Ollama models`)
-          } else if (this.configForm.get('ocr_engine')?.value === 'ollama' && this.configForm.get('ollama_endpoint')?.value) {
-            // If we really tried and got 0.
-            this.toastService.showInfo($localize`No models found at this endpoint`)
+    )
+      .pipe(
+        takeUntil(this.unsubscribeNotifier),
+        debounceTime(500),
+        switchMap(() => {
+          const engine = this.configForm.get('ocr_engine')?.value
+          const endpoint = this.configForm.get('ollama_endpoint')?.value
+          if (engine === 'ollama' && endpoint) {
+            return this.ollamaService.getModels(endpoint)
           }
-        }
-      },
-      error: (err) => {
-        this.toastService.showError($localize`Failed to fetch models`, err)
-      }
-    })
+          return []
+        })
+      )
+      .subscribe({
+        next: (models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'ollama_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+            // Only show toast if we actually returned models (meaning fetch happened)
+            // To avoid spamming on every keypress if returning empty array above.
+            // Wait, 'models' will be empty array if condition false OR if fetch returned empty.
+            // We can distinguish by context or just check length.
+            // Ideally we only want to show toast if we *attempted* a fetch.
+            // But here we are just returning empty array if no fetch.
+            // A better pattern: filter BEFORE switchMap?
+            // If I filter, I won't reset the choices if engine changes away from ollama?
+            // Actually, if engine changes to Tesseract, we probably don't care about ollama_model choices.
+            if (models.length > 0) {
+              console.info(`Found ${models.length} Ollama models`)
+            } else if (
+              this.configForm.get('ocr_engine')?.value === 'ollama' &&
+              this.configForm.get('ollama_endpoint')?.value
+            ) {
+              // If we really tried and got 0.
+              this.toastService.showWarning(
+                $localize`No models found at this endpoint`
+              )
+            }
+          }
+        },
+        error: (err) => {
+          this.toastService.showError($localize`Failed to fetch models`, err)
+        },
+      })
 
     // Trigger initial fetch if endpoint exists
     const initialEndpoint = this.configForm.get('ollama_endpoint')?.value
     if (initialEndpoint) {
-      this.ollamaService.getModels(initialEndpoint).subscribe(models => {
-        const modelOption = PaperlessConfigOptions.find(o => o.key === 'ollama_model')
+      this.ollamaService.getModels(initialEndpoint).subscribe((models) => {
+        const modelOption = PaperlessConfigOptions.find(
+          (o) => o.key === 'ollama_model'
+        )
         if (modelOption) {
           modelOption.choices = models
         }

@@ -17,5 +17,7 @@ def ollama_consumer_declaration(sender, **kwargs):
             "image/gif": ".gif",
             "image/webp": ".webp",
             "image/heic": ".heic",
+            "text/plain": ".txt",
+            "text/markdown": ".md",
         },
     }

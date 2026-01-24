@@ -74,7 +74,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
                 "llm_model": None,
                 "llm_api_key": None,
                 "llm_endpoint": None,
-                 "ocr_engine": "tesseract",
+                "ocr_engine": "tesseract",
                 "ollama_endpoint": None,
                 "ollama_model": None,
                 "ollama_prompt_template": None,

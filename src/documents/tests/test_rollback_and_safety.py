@@ -71,7 +71,7 @@ class RollbackTestCase(TestCase):
         )
 
         # Rollback the change
-        result = rollback_ai_suggestions(history.id, self.user)
+        rollback_ai_suggestions(history.id, self.user)
 
         # Check that document title was reverted (assuming original was empty or different)
         self.document.refresh_from_db()
@@ -103,11 +103,13 @@ class RollbackTestCase(TestCase):
     def test_rollback_permission_check(self):
         """Test that rollback checks permissions."""
         other_user = User.objects.create_user(
-            username="otheruser", password="otherpass",
+            username="otheruser",
+            password="otherpass",
         )
         other_document = DocumentFactory.create(owner=other_user)
         history = AISuggestionHistoryFactory.create(
-            document=other_document, owner=other_user,
+            document=other_document,
+            owner=other_user,
         )
 
         # Try to rollback as wrong user - should fail or be prevented
@@ -167,7 +169,7 @@ class RateLimitingTestCase(TestCase):
         mock_now.timestamp.return_value = 1234567890.0
         mock_timezone.now.return_value = mock_now
 
-        result = check_ai_rate_limit(self.user)
+        check_ai_rate_limit(self.user)
 
         # Should set cache with the list of timestamps
         mock_cache.set.assert_called_once()
@@ -189,7 +191,9 @@ class GracefulDegradationTestCase(TestCase):
         PAPERLESS_AI__GRACEFUL_DEGRADATION=True,
     )
     def test_graceful_degradation_on_ai_failure(
-        self, mock_rate_limit, mock_ai_classify,
+        self,
+        mock_rate_limit,
+        mock_ai_classify,
     ):
         """Test that consumption continues when AI fails and graceful degradation is enabled."""
         from documents.tasks import auto_enhance_document
@@ -211,7 +215,9 @@ class GracefulDegradationTestCase(TestCase):
     @patch("documents.tasks.get_ai_document_classification_with_confidence")
     @patch("documents.utils.check_ai_rate_limit")
     def test_no_graceful_degradation_raises_exception(
-        self, mock_rate_limit, mock_ai_classify,
+        self,
+        mock_rate_limit,
+        mock_ai_classify,
     ):
         """Test that exceptions are raised when graceful degradation is disabled."""
         from documents.tasks import auto_enhance_document

@@ -63,7 +63,9 @@ class BulkArchiveStrategy:
 
         The path is already unique, as handled when a document is consumed or updated
         """
-        filename_format = convert_format_str_to_template_format(settings.FILENAME_FORMAT)
+        filename_format = convert_format_str_to_template_format(
+            settings.FILENAME_FORMAT,
+        )
         rendered = format_filename(doc, filename_format)
         if rendered:
             final_name = rendered + ".pdf" if archive else rendered + doc.file_type

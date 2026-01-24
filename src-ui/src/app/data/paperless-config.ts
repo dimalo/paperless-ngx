@@ -99,7 +99,8 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.Select,
     choices: [
       { id: 'tesseract', name: 'Tesseract' },
-      { id: 'docling', name: 'Docling' },
+      { id: 'docling', name: 'Docling (Local)' },
+      { id: 'docling_server', name: 'Docling Server' },
       { id: 'ollama', name: 'Ollama' },
     ],
     config_key: 'PAPERLESS_OCR_ENGINE',

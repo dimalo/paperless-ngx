@@ -14,20 +14,18 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
     SAMPLE_FILES = Path(__file__).resolve().parent / "samples"
 
     @mock.patch("img2pdf.convert", return_value=b"pdf data")
-    @mock.patch("httpx.Client")
-    def test_parse_image_success(self, mock_client, mock_img2pdf):
+    @mock.patch("litellm.completion")
+    def test_parse_image_success(self, mock_completion, mock_img2pdf):
         """
         Test successful parsing of an image.
         """
         parser = OllamaDocumentParser(uuid.uuid4())
 
         mock_response = mock.Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "message": {"content": "Extracted text from image."},
-        }
-        mock_client.return_value.__enter__.return_value = mock_client.return_value
-        mock_client.return_value.post.return_value = mock_response
+        mock_response.choices = [
+            mock.Mock(message=mock.Mock(content="Extracted text from image.")),
+        ]
+        mock_completion.return_value = mock_response
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             image_path = Path(tmp.name)
@@ -49,7 +47,7 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
         parser = OllamaDocumentParser(uuid.uuid4())
 
         with (
-            mock.patch("httpx.Client") as mock_client,
+            mock.patch("litellm.completion") as mock_completion,
             mock.patch.object(
                 parser,
                 "_convert_pdf_pages_to_images",
@@ -62,10 +60,10 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
             ) as mock_process,
         ):
             mock_response = mock.Mock()
-            mock_response.raise_for_status.return_value = None
-            mock_response.json.return_value = {"message": {"content": "Page 1 text."}}
-            mock_client.return_value.__enter__.return_value = mock_client.return_value
-            mock_client.return_value.post.return_value = mock_response
+            mock_response.choices = [
+                mock.Mock(message=mock.Mock(content="Page 1 text.")),
+            ]
+            mock_completion.return_value = mock_response
 
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 pdf_path = Path(tmp.name)
@@ -87,9 +85,8 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
         """
         parser = OllamaDocumentParser(uuid.uuid4())
 
-        with mock.patch("httpx.Client") as mock_client:
-            mock_client.return_value.__enter__.return_value = mock_client.return_value
-            mock_client.return_value.post.side_effect = Exception("API error")
+        with mock.patch("litellm.completion") as mock_completion:
+            mock_completion.side_effect = Exception("API error")
 
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
                 image_path = Path(tmp.name)
@@ -101,18 +98,36 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
             finally:
                 image_path.unlink(missing_ok=True)
 
+    def test_parse_text_success(self):
+        """
+        Test successful parsing of a text file.
+        """
+        parser = OllamaDocumentParser(uuid.uuid4())
+
+        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
+            file_path = Path(tmp.name)
+            tmp.write(b"dummy text content")
+
+        try:
+            parser.parse(file_path, "text/plain")
+
+            self.assertEqual(parser.text, "dummy text content")
+            self.assertIsNotNone(parser.archive_path)
+        finally:
+            file_path.unlink(missing_ok=True)
+
     def test_parse_unsupported_mime_type(self):
         """
         Test parsing with unsupported MIME type.
         """
         parser = OllamaDocumentParser(uuid.uuid4())
 
-        with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".doc", delete=False) as tmp:
             file_path = Path(tmp.name)
-            tmp.write(b"dummy text")
+            tmp.write(b"dummy doc")
 
         try:
             with self.assertRaises(ParseError):
-                parser.parse(file_path, "text/plain")
+                parser.parse(file_path, "application/msword")
         finally:
             file_path.unlink(missing_ok=True)

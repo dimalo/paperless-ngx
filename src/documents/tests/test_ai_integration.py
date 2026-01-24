@@ -149,7 +149,9 @@ class AIEnhancementIntegrationTestCase(TestCase):
     @patch("documents.utils.check_ai_rate_limit")
     @override_settings(PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=True)
     def test_ai_enhancement_disabled_integration(
-        self, mock_rate_limit, mock_ai_classify,
+        self,
+        mock_rate_limit,
+        mock_ai_classify,
     ):
         """Test that AI enhancement is skipped when disabled."""
         # Create document

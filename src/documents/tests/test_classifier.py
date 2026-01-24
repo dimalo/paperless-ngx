@@ -730,6 +730,7 @@ def test_preprocess_content():
     """
     try:
         import nltk
+
         nltk.data.find("corpora/stopwords")
     except LookupError:
         pytest.skip("NLTK stopwords corpus not available")
