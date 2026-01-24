@@ -91,6 +91,28 @@ def test_get_embedding_model_huggingface(mock_ai_config):
         assert model == MockHuggingFaceEmbedding.return_value
 
 
+def test_get_embedding_model_ollama(mock_ai_config):
+    mock_ai_config.return_value.llm_embedding_backend = LLMEmbeddingBackend.OLLAMA
+    mock_ai_config.return_value.llm_embedding_model = "nomic-embed-text"
+    mock_ai_config.return_value.llm_endpoint = "http://ollama:11434"
+    mock_ai_config.return_value.llm_api_key = "test_key"
+    mock_ai_config.return_value.llm_timeout = 30
+    mock_ai_config.return_value.llm_embedding_endpoint = None
+    mock_ai_config.return_value.llm_embedding_api_key = None
+
+    with patch(
+        "paperless_ai.embedding.LiteLLMEmbedding",
+    ) as MockLiteLLMEmbedding:
+        model = get_embedding_model()
+        MockLiteLLMEmbedding.assert_called_once_with(
+            model_name="nomic-embed-text",
+            api_base="http://ollama:11434",
+            api_key="test_key",
+            timeout=30.0,
+        )
+        assert model == MockLiteLLMEmbedding.return_value
+
+
 def test_get_embedding_model_invalid_backend(mock_ai_config):
     mock_ai_config.return_value.llm_embedding_backend = "INVALID_BACKEND"
 

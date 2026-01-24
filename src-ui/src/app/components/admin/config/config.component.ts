@@ -17,6 +17,7 @@ import {
   Subscription,
   first,
   merge,
+  of,
   takeUntil,
 } from 'rxjs'
 import { debounceTime, switchMap } from 'rxjs/operators'
@@ -196,10 +197,47 @@ export class ConfigComponent
         },
       })
 
+    // AI Embedding Model Fetching
+    merge(
+      this.configForm.get('llm_embedding_endpoint')?.valueChanges,
+      this.configForm.get('llm_endpoint')?.valueChanges,
+      this.configForm.get('ollama_endpoint')?.valueChanges,
+      this.configForm.get('llm_embedding_backend')?.valueChanges
+    )
+      .pipe(
+        takeUntil(this.unsubscribeNotifier),
+        debounceTime(500),
+        switchMap(() => {
+          const backend = this.configForm.get('llm_embedding_backend')?.value
+          const llmEmbedEndpoint = this.configForm.get(
+            'llm_embedding_endpoint'
+          )?.value
+          const llmEndpoint = this.configForm.get('llm_endpoint')?.value
+          const ocrEndpoint = this.configForm.get('ollama_endpoint')?.value
+          if (backend === 'ollama') {
+            const endpoint = llmEmbedEndpoint || llmEndpoint || ocrEndpoint
+            if (endpoint) {
+              return this.ollamaService.getModels(endpoint)
+            }
+          }
+          return of([])
+        })
+      )
+      .subscribe({
+        next: (models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'llm_embedding_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+          }
+        },
+      })
+
     // Trigger initial fetch if endpoint exists
-    const initialEndpoint = this.configForm.get('ollama_endpoint')?.value
-    if (initialEndpoint) {
-      this.ollamaService.getModels(initialEndpoint).subscribe((models) => {
+    const initialOcrEndpoint = this.configForm.get('ollama_endpoint')?.value
+    if (initialOcrEndpoint) {
+      this.ollamaService.getModels(initialOcrEndpoint).subscribe((models) => {
         const modelOption = PaperlessConfigOptions.find(
           (o) => o.key === 'ollama_model'
         )
@@ -207,6 +245,28 @@ export class ConfigComponent
           modelOption.choices = models
         }
       })
+    }
+
+    const initialLlmEmbedEndpoint = this.configForm.get(
+      'llm_embedding_endpoint'
+    )?.value
+    const initialLlmEndpoint = this.configForm.get('llm_endpoint')?.value
+    const llmEmbeddingBackend = this.configForm.get(
+      'llm_embedding_backend'
+    )?.value
+    if (llmEmbeddingBackend === 'ollama') {
+      const endpoint =
+        initialLlmEmbedEndpoint || initialLlmEndpoint || initialOcrEndpoint
+      if (endpoint) {
+        this.ollamaService.getModels(endpoint).subscribe((models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'llm_embedding_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+          }
+        })
+      }
     }
   }
 

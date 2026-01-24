@@ -58,6 +58,7 @@ export const ConfigCategory = {
 export const LLMEmbeddingBackendConfig = {
   OPENAI: 'openai',
   HUGGINGFACE: 'huggingface',
+  OLLAMA: 'ollama',
 }
 
 export const LLMBackendConfig = {
@@ -484,9 +485,24 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
+    key: 'llm_embedding_endpoint',
+    title: $localize`Embedding Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_api_key',
+    title: $localize`Embedding API Key`,
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_API_KEY',
+    category: ConfigCategory.AI,
+  },
+  {
     key: 'llm_embedding_model',
     title: $localize`Embedding Model`,
-    type: ConfigOptionType.String,
+    type: ConfigOptionType.Select,
+    choices: [],
     config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
     category: ConfigCategory.AI,
   },
@@ -605,6 +621,8 @@ export interface PaperlessConfig extends ObjectWithId {
   barcode_tag_mapping: object
   ai_enabled: boolean
   llm_embedding_backend: string
+  llm_embedding_endpoint: string
+  llm_embedding_api_key: string
   llm_embedding_model: string
   llm_backend: string
   llm_model: string

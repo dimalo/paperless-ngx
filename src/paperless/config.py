@@ -14,12 +14,18 @@ class BaseConfig:
 
     @staticmethod
     def _get_config_instance() -> ApplicationConfiguration:
-        app_config = ApplicationConfiguration.objects.all().first()
-        # Workaround for a test where the migration hasn't run to create the single model
-        if app_config is None:
-            ApplicationConfiguration.objects.create()
+        from django.db.utils import ProgrammingError
+
+        try:
             app_config = ApplicationConfiguration.objects.all().first()
-        return app_config
+            # Workaround for a test where the migration hasn't run to create the single model
+            if app_config is None:
+                ApplicationConfiguration.objects.create()
+                app_config = ApplicationConfiguration.objects.all().first()
+            return app_config
+        except ProgrammingError:
+            # Fallback for when migrations haven't run yet
+            return ApplicationConfiguration()
 
 
 @dataclasses.dataclass
@@ -208,7 +214,8 @@ class AIConfig(BaseConfig):
 
     ai_enabled: bool = dataclasses.field(init=False)
     llm_embedding_backend: str = dataclasses.field(init=False)
-    llm_embedding_model: str = dataclasses.field(init=False)
+    llm_embedding_endpoint: str = dataclasses.field(init=False)
+    llm_embedding_api_key: str = dataclasses.field(init=False)
     llm_backend: str = dataclasses.field(init=False)
     llm_model: str = dataclasses.field(init=False)
     llm_api_key: str = dataclasses.field(init=False)
@@ -235,6 +242,17 @@ class AIConfig(BaseConfig):
         self.llm_embedding_model = (
             app_config.llm_embedding_model or settings.LLM_EMBEDDING_MODEL
         )
+        self.llm_embedding_endpoint = getattr(
+            app_config,
+            "llm_embedding_endpoint",
+            None,
+        ) or getattr(settings, "LLM_EMBEDDING_ENDPOINT", None)
+        self.llm_embedding_api_key = getattr(
+            app_config,
+            "llm_embedding_api_key",
+            None,
+        ) or getattr(settings, "LLM_EMBEDDING_API_KEY", None)
+
         self.llm_backend = app_config.llm_backend or settings.LLM_BACKEND
         self.llm_model = app_config.llm_model or settings.LLM_MODEL
         self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY

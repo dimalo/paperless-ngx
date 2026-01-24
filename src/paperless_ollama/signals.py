@@ -7,13 +7,18 @@ def get_parser(*args, **kwargs):
 def ollama_consumer_declaration(sender, **kwargs):
     from django.conf import settings
 
+    # Check DB setting first, then env var
+    from django.db.utils import ProgrammingError
+
     from paperless.models import ApplicationConfiguration
 
-    # Check DB setting first, then env var
-    config = ApplicationConfiguration.objects.first()
-    ocr_engine = (
-        config.ocr_engine if config and config.ocr_engine else settings.OCR_ENGINE
-    )
+    try:
+        config = ApplicationConfiguration.objects.first()
+        ocr_engine = (
+            config.ocr_engine if config and config.ocr_engine else settings.OCR_ENGINE
+        )
+    except ProgrammingError:
+        ocr_engine = settings.OCR_ENGINE
 
     if ocr_engine != "ollama":
         return None
