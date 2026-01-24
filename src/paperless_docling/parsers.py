@@ -5,13 +5,13 @@ from pathlib import Path
 import httpx
 from django.conf import settings
 
+from documents.parsers import ImageDocumentParser
 from documents.parsers import ParseError
 from documents.parsers import make_thumbnail_from_pdf
 from paperless.config import DoclingConfig
-from paperless_tesseract.parsers import RasterisedDocumentParser
 
 
-class DoclingDocumentParser(RasterisedDocumentParser):
+class DoclingDocumentParser(ImageDocumentParser):
     """
     This parser uses Docling-serve to parse documents and extract text.
     """

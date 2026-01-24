@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 import litellm
 from litellm.exceptions import APIConnectionError
@@ -20,6 +21,62 @@ class AIClient:
     def __init__(self):
         self.settings = AIConfig()
 
+    @property
+    def llm(self):
+        """
+        Get a LlamaIndex-compatible LLM instance.
+        """
+        from llama_index.llms.ollama import Ollama
+        from llama_index.llms.openai import OpenAI
+
+        # For LlamaIndex, we use the specific integration based on the backend
+        if self.settings.llm_backend == "ollama":
+            return Ollama(
+                model=self.settings.llm_model,
+                base_url=self.settings.llm_endpoint,
+                request_timeout=float(self.settings.llm_timeout),
+            )
+        else:
+            # For other providers (OpenAI, Azure, Anthropic, etc.),
+            # we use the OpenAI class which is LiteLLM-compatible if the endpoint is set
+            return OpenAI(
+                model=self._get_model_with_prefix(),
+                api_base=self.settings.llm_endpoint,
+                api_key=self.settings.llm_api_key,
+                timeout=float(self.settings.llm_timeout),
+            )
+
+    def _clean_response(self, message) -> str:
+        """
+        Clean the LLM response by removing thinking/reasoning blocks.
+        Supports both LiteLLM's reasoning_content field and fallback string cleaning.
+        """
+        # 1. Check if LiteLLM already separated the reasoning content
+        # (available for DeepSeek Reasoner, OpenAI o1, etc.)
+        if hasattr(message, "reasoning_content") and message.reasoning_content:
+            logger.debug("Detected separate reasoning_content from LiteLLM")
+            return (message.content or "").strip()
+
+        content = message.content or ""
+        if not content:
+            return ""
+
+        # 2. Fallback: Remove <think>...</think> blocks if they are embedded in content
+        # This often happens with local Ollama/vLLM setups or older LiteLLM versions.
+
+        # First, remove properly paired <think>...</think> blocks
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+
+        # Handle unclosed <think> tags (if truncated) - keep everything before
+        if "<think>" in content:
+            content = content.split("<think>")[0]
+
+        # Handle orphaned </think> tags (when opening tag was earlier) - keep everything after
+        if "</think>" in content:
+            content = content.split("</think>", 1)[-1]
+
+        return content.strip()
+
     def _get_model_with_prefix(self) -> str:
         """
         Get the model name with provider prefix for LiteLLM.
@@ -39,157 +96,67 @@ class AIClient:
 
     def run_llm_query(self, prompt: str) -> dict:
         """
-        Run an LLM query with function calling to extract structured data.
-
-        Args:
-            prompt: The prompt to send to the LLM
-
-        Returns:
-            Dictionary with extracted document classification data
-
-        Raises:
-            Exception: If LLM query fails or returns invalid data
+        Run an LLM query with structured output to extract metadata.
+        Uses explicit schema injection and JSON mode for maximum compatibility across backends.
         """
-        logger.debug(
-            "Running LLM query against %s with model %s",
-            self.settings.llm_backend,
-            self.settings.llm_model,
+        model = self._get_model_with_prefix()
+        backend = self.settings.llm_backend
+        logger.debug("Running LLM query against %s (%s)", model, backend)
+
+        # Build a prompt that explicitly includes the schema
+        # For local models, explicit schema in prompt + robust parsing often works better
+        # than API-level JSON mode which can cause repetition/hallucination.
+        schema_json = DocumentClassifierSchema.model_json_schema()
+        full_prompt = (
+            f"{prompt}\n\n"
+            f"INSTRUCTIONS: You are a pure data extraction backend. Output ONLY a valid JSON object matching this schema. "
+            f"Do not repeat the prompt. Do not add markdown or conversational text.\n"
+            f"SCHEMA:\n{json.dumps(schema_json, indent=2)}\n\n"
+            f"JSON RESPONSE:"
         )
 
-        model = self._get_model_with_prefix()
+        messages = [{"role": "user", "content": full_prompt}]
 
-        # Build tool calling schema from Pydantic model
-        # Using modern 'tools' parameter instead of deprecated 'functions'
-        tool_schema = {
-            "type": "function",
-            "function": {
-                "name": "classify_document",
-                "description": "Classify a document and extract metadata",
-                "parameters": DocumentClassifierSchema.model_json_schema(),
-            },
-        }
-
-        messages = [{"role": "user", "content": prompt}]
-
-        last_exception = None
-
-        # Attempt 1: Try with native tool calling
         try:
-            logger.debug("Attempt 1: Using native tool calling")
-            # ... (implementation)
+            # We skip response_format={"type": "json_object"} as it caused hallucinations
+            # on some Ollama models. We rely on the prompt + manual extraction.
             response = litellm.completion(
                 model=model,
                 messages=messages,
-                tools=[tool_schema],
-                stream=False,
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "classify_document"},
-                },
-                api_base=self.settings.llm_endpoint,
-                api_key=self.settings.llm_api_key,
-                timeout=self.settings.llm_timeout,
-            )
-
-            message = response.choices[0].message
-
-            # Check for valid tool call
-            if hasattr(message, "tool_calls") and message.tool_calls:
-                function_args = message.tool_calls[0].function.arguments
-                if isinstance(function_args, str):
-                    function_args = json.loads(function_args)
-                logger.debug("Attempt 1 successful with tool call")
-                return DocumentClassifierSchema(**function_args).model_dump()
-
-            # Check for valid JSON in content (fallback for misbehaving tool models)
-            if message.content:
-                content = message.content.strip()
-                start_idx = content.find("{")
-                end_idx = content.rfind("}")
-                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    possible_json = content[start_idx : end_idx + 1]
-                    logger.debug("Attempt 1 successful with JSON in content")
-                    return DocumentClassifierSchema(
-                        **json.loads(possible_json),
-                    ).model_dump()
-
-            logger.warning(
-                "Attempt 1 failed: No tool call or JSON content found. Content length: %d",
-                len(message.content or ""),
-            )
-
-        except Exception as e:
-            logger.warning(f"Attempt 1 failed with error: {e}")
-            last_exception = e
-
-        # Attempt 2: Retry with JSON mode (no tools)
-        logger.debug("Attempt 2: Retrying with JSON mode and explicit schema")
-
-        # Prepare system prompt with schema
-        schema_json = json.dumps(DocumentClassifierSchema.model_json_schema(), indent=2)
-        system_prompt = (
-            f"You are a document classifier. "
-            f"Classify the document and extract metadata. "
-            f"Output strictly valid JSON matching this schema:\n{schema_json}"
-        )
-
-        retry_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ]
-
-        try:
-            response = litellm.completion(
-                model=model,
-                messages=retry_messages,
                 stream=False,
                 api_base=self.settings.llm_endpoint,
                 api_key=self.settings.llm_api_key,
                 timeout=self.settings.llm_timeout,
             )
 
-            message = response.choices[0].message
-            content = message.content or ""
+            content = self._clean_response(response.choices[0].message)
+            if not content:
+                raise ValueError("LLM returned empty content")
+
+            # Extract JSON from potential markdown or conversational text
             start_idx = content.find("{")
             end_idx = content.rfind("}")
-
             if start_idx != -1 and end_idx != -1:
                 content = content[start_idx : end_idx + 1]
-                data = json.loads(content)
-                logger.debug("Attempt 2 successful")
-                return DocumentClassifierSchema(**data).model_dump()
 
-            logger.warning("Attempt 2 failed: JSON delimiters not found")
+            # Validate against the Pydantic model
+            return DocumentClassifierSchema.model_validate_json(content).model_dump()
 
         except Exception as e:
-            logger.error(f"Attempt 2 failed: {e}")
-            last_exception = e
-
-        # If we get here, both attempts failed
-        # Log the content of the LAST attempt for debugging purposes
-        safe_content = ""
-        if "response" in locals():
-            try:
-                # Try to use Pydantic's built-in JSON serialization if available (LiteLLM responses are Pydantic models)
-                if hasattr(response, "model_dump_json"):
-                    safe_content = response.model_dump_json(indent=2)
-                elif hasattr(response, "json") and callable(response.json):
-                    # Some older versions or specific types might use .json()
-                    safe_content = response.json(indent=2)
-                else:
-                    # Fallback: try to dump via dict/attributes or just str
-                    safe_content = str(response)
-            except Exception:
-                safe_content = str(response)
-
-        # Log the detailed response at DEBUG level
-        logger.debug("Final Failure Response: %s", safe_content)
-
-        error_msg = f"Failed to extract document classification data after 2 attempts. Response: {safe_content}"
-        if last_exception:
-            error_msg += f" Last Error: {last_exception}"
-
-        raise ValueError(error_msg)
+            # Enhanced error logging
+            raw_content = "unknown"
+            if "response" in locals() and hasattr(response, "choices"):
+                try:
+                    raw_content = response.choices[0].message.content
+                except Exception:
+                    pass
+            logger.error(
+                "Structured extraction failed. Raw content: %s. Error: %s",
+                raw_content,
+                e,
+            )
+            # Re-raise with a clear message
+            raise ValueError(f"Failed to extract document data: {e}") from e
 
     def run_chat(self, messages: list[dict]) -> str:
         """
@@ -216,12 +183,13 @@ class AIClient:
             response = litellm.completion(
                 model=model,
                 messages=messages,
+                stream=False,
                 api_base=self.settings.llm_endpoint,
                 api_key=self.settings.llm_api_key,
                 timeout=self.settings.llm_timeout,
             )
 
-            result = response.choices[0].message.content
+            result = self._clean_response(response.choices[0].message)
             logger.debug("Chat result: %s", result)
             return result
 

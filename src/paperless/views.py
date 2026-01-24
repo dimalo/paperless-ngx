@@ -476,20 +476,26 @@ class LLMProxyView(GenericAPIView):
 
         # If not passed, check configured backend
         if not endpoint:
-            # We can use the generic AIConfig too
             from paperless.config import AIConfig
             from paperless.config import OllamaConfig
 
             # Ideally we check which backend is being tested
             backend = request.data.get("backend") or request.query_params.get("backend")
 
-            if backend == "ollama":
-                config = OllamaConfig()
-                endpoint = config.endpoint
-            else:
-                # Default to AIConfig lookup if matching backend
-                ai_config = AIConfig()
-                if ai_config.llm_backend == backend:
+            # Check general AI configuration first if backend matches
+            # This ensures that testing the LLM uses the LLM endpoint even if
+            # the OCR engine is using a different (or default) Ollama endpoint.
+            ai_config = AIConfig()
+            if backend == ai_config.llm_backend and ai_config.llm_endpoint:
+                endpoint = ai_config.llm_endpoint
+
+            # Fallback to specific OCR config if still not found
+            if not endpoint:
+                if backend == "ollama":
+                    config = OllamaConfig()
+                    endpoint = config.endpoint
+                elif ai_config.llm_backend == backend:
+                    # Final fallback to what we found earlier (safeguard)
                     endpoint = ai_config.llm_endpoint
 
         return endpoint

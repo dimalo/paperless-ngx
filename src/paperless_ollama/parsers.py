@@ -13,14 +13,14 @@ from reportlab.lib.colors import Color
 from reportlab.pdfgen import canvas
 
 from documents.gotenberg import generate_pdf_from_markdown
+from documents.parsers import ImageDocumentParser
 from documents.parsers import ParseError
 from documents.parsers import make_thumbnail_from_pdf
 from documents.utils import run_subprocess
 from paperless.config import OllamaConfig
-from paperless_tesseract.parsers import RasterisedDocumentParser
 
 
-class OllamaDocumentParser(RasterisedDocumentParser):
+class OllamaDocumentParser(ImageDocumentParser):
     """
     This parser uses Ollama API with deepseek-ocr model to extract text from rasterized documents.
     """
@@ -105,6 +105,7 @@ class OllamaDocumentParser(RasterisedDocumentParser):
         response = litellm.completion(
             model=f"ollama/{self.settings.model}",
             messages=messages,
+            stream=False,
             api_base=self.settings.endpoint,
             timeout=self.settings.timeout,
         )
@@ -173,15 +174,17 @@ class OllamaDocumentParser(RasterisedDocumentParser):
         Remove special tags from the extracted text while keeping the content.
         """
         # Remove <|det|>... tags entirely
-        text = re.sub(r"<\|det\|>.*?<\|/det\|>", "", text)
-        # Remove <|ref|> and </|ref|> tags but keep the content
-        text = re.sub(r"<\|/?ref\|>", "", text)
+        text = re.sub(r"<\|det\|>.*?<\|/det\|>", "", text, flags=re.DOTALL)
+        # Remove <|ref|>...<|/ref|> tags AND their content
+        text = re.sub(r"<\|ref\|>.*?<\|/ref\|>", "", text, flags=re.DOTALL)
         return text.strip()
 
     def _generate_overlay_pdf(
         self,
         image_path: Path,
         ocr_data: list[tuple[str, list[int]]],
+        *,
+        draw_boxes: bool = False,
     ) -> Path:
         """
         Generate a searchable PDF using reportlab overlay.
@@ -212,6 +215,17 @@ class OllamaDocumentParser(RasterisedDocumentParser):
             # Make text transparent
             c.setFillColor(Color(0, 0, 0, alpha=0))
             c.drawString(px1, py1, text)
+
+            if draw_boxes:
+                # Draw visible bounding box
+                c.setStrokeColor(Color(1, 0, 0, alpha=1))  # Red
+                c.setLineWidth(1)
+                # width = scaled x2 - scaled x1
+                # height = py2 - py1 (since py2 is top Y in cartesian)
+                px2 = (box[2] * w) / 1000
+                rect_width = px2 - px1
+                rect_height = py2 - py1
+                c.rect(px1, py1, rect_width, rect_height, stroke=1, fill=0)
 
         c.showPage()
         c.save()
@@ -283,8 +297,10 @@ class OllamaDocumentParser(RasterisedDocumentParser):
                 image_paths = self._convert_pdf_pages_to_images(document_path)
                 texts = []
                 overlay_pdfs = []
+                total_pages = len(image_paths)
 
-                for image_path in image_paths:
+                for idx, image_path in enumerate(image_paths, start=1):
+                    self.log.info(f"Processing page {idx}/{total_pages}")
                     raw_result = self._process_image(image_path)
                     self.page_results.append(raw_result)
 
@@ -295,8 +311,15 @@ class OllamaDocumentParser(RasterisedDocumentParser):
                     ocr_data = self._parse_ocr_coordinates(raw_result)
                     if ocr_data:
                         overlay_pdfs.append(
-                            self._generate_overlay_pdf(image_path, ocr_data),
+                            self._generate_overlay_pdf(
+                                image_path,
+                                ocr_data,
+                                draw_boxes=self.settings.ollama_ocr_debug_thumbnail,
+                            ),
                         )
+
+                    # Report progress after each page
+                    self.progress(idx, total_pages)
 
                 self.text = "\n\n".join(texts)
 
@@ -322,6 +345,7 @@ class OllamaDocumentParser(RasterisedDocumentParser):
                     self.archive_path = self._generate_overlay_pdf(
                         document_path,
                         ocr_data,
+                        draw_boxes=self.settings.ollama_ocr_debug_thumbnail,
                     )
 
             elif mime_type in ["text/plain", "text/markdown"]:

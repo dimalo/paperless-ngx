@@ -4,12 +4,9 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cv2
 from django.conf import settings
-from PIL import Image
-from PIL import ImageFilter
 
-from documents.parsers import DocumentParser
+from documents.parsers import ImageDocumentParser
 from documents.parsers import ParseError
 from documents.parsers import make_thumbnail_from_pdf
 from documents.utils import maybe_override_pixel_limit
@@ -28,7 +25,7 @@ class RtlLanguageException(Exception):
     pass
 
 
-class RasterisedDocumentParser(DocumentParser):
+class RasterisedDocumentParser(ImageDocumentParser):
     """
     This parser uses Tesseract to try and get some text out of a rasterised
     image, whether it's a PDF, or other graphical format (JPEG, TIFF, etc.)
@@ -101,113 +98,6 @@ class RasterisedDocumentParser(DocumentParser):
             self.tempdir,
             self.logging_group,
         )
-
-    def is_image(self, mime_type) -> bool:
-        return mime_type in [
-            "image/png",
-            "image/jpeg",
-            "image/tiff",
-            "image/bmp",
-            "image/gif",
-            "image/webp",
-            "image/heic",
-        ]
-
-    def has_alpha(self, image) -> bool:
-        with Image.open(image) as im:
-            return im.mode in ("RGBA", "LA")
-
-    def remove_alpha(self, image_path: str) -> Path:
-        no_alpha_image = Path(self.tempdir) / "image-no-alpha"
-        run_subprocess(
-            [
-                settings.CONVERT_BINARY,
-                "-alpha",
-                "off",
-                image_path,
-                no_alpha_image,
-            ],
-            logger=self.log,
-        )
-        return no_alpha_image
-
-    def get_dpi(self, image) -> int | None:
-        try:
-            with Image.open(image) as im:
-                x, _ = im.info["dpi"]
-                return round(x)
-        except Exception as e:
-            self.log.warning(f"Error while getting DPI from image {image}: {e}")
-            return None
-
-    def calculate_a4_dpi(self, image) -> int | None:
-        try:
-            with Image.open(image) as im:
-                width, _ = im.size
-                # divide image width by A4 width (210mm) in inches.
-                dpi = int(width / (21 / 2.54))
-                self.log.debug(f"Estimated DPI {dpi} based on image width {width}")
-                return dpi
-
-        except Exception as e:
-            self.log.warning(f"Error while calculating DPI for image {image}: {e}")
-            return None
-
-    def sharpen_image_pillow(self, image_path: Path) -> Path:
-        """
-        Apply unsharp mask to sharpen the image using Pillow.
-        """
-        sharpened_path = Path(self.tempdir) / "sharpened_image"
-        with Image.open(image_path) as img:
-            # Apply UnsharpMask filter
-            sharpened = img.filter(
-                ImageFilter.UnsharpMask(
-                    radius=self.settings.sharpen_radius,
-                    percent=self.settings.sharpen_percent,
-                    threshold=self.settings.sharpen_threshold,
-                ),
-            )
-            sharpened.save(sharpened_path, format=img.format)
-        return sharpened_path
-
-    def deskew_image_opencv(self, image_path: Path) -> Path:
-        """
-        Deskew the image using OpenCV Hough transform.
-        """
-        deskewed_path = Path(self.tempdir) / "deskewed_image"
-        img = cv2.imread(str(image_path))
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.bitwise_not(gray)
-        thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-        coords = cv2.findNonZero(thresh)
-        angle = cv2.minAreaRect(coords)[-1]
-        if angle < -45:
-            angle = -(90 + angle)
-        else:
-            angle = -angle
-        (h, w) = img.shape[:2]
-        center = (w // 2, h // 2)
-        M = cv2.getRotationMatrix2D(center, angle, 1.0)
-        rotated = cv2.warpAffine(
-            img,
-            M,
-            (w, h),
-            flags=cv2.INTER_CUBIC,
-            borderMode=cv2.BORDER_REPLICATE,
-        )
-        cv2.imwrite(str(deskewed_path), rotated)
-        return deskewed_path
-
-    def preprocess_image(self, image_path: Path) -> Path:
-        """
-        Conditionally apply sharpening and deskewing, saving to a temp file.
-        """
-        processed_path = image_path
-        if self.settings.sharpen:
-            processed_path = self.sharpen_image_pillow(processed_path)
-        if self.settings.custom_alignment:
-            processed_path = self.deskew_image_opencv(processed_path)
-        return processed_path
 
     def extract_text(
         self,
@@ -437,9 +327,24 @@ class RasterisedDocumentParser(DocumentParser):
             sidecar_file,
         )
 
+        # Get page count for progress reporting
+        page_count = self.get_page_count(document_path, mime_type)
+        if page_count:
+            self.log.debug(f"Document has {page_count} pages")
+
+        # Create a progress callback for OCRmyPDF
+        def ocrmypdf_progress_callback(page_number, page_count):
+            """Called by OCRmyPDF for each page processed"""
+            self.log.debug(f"OCRmyPDF processing page {page_number}/{page_count}")
+            self.progress(page_number, page_count)
+
         try:
             self.log.debug(f"Calling OCRmyPDF with args: {args}")
-            ocrmypdf.ocr(**args)
+            # OCRmyPDF supports a progress_bar_friendly callback
+            if page_count:
+                ocrmypdf.ocr(**args, progress_bar_friendly=ocrmypdf_progress_callback)
+            else:
+                ocrmypdf.ocr(**args)
 
             if self.settings.skip_archive_file != ArchiveFileChoices.ALWAYS:
                 self.archive_path = archive_path
@@ -486,7 +391,14 @@ class RasterisedDocumentParser(DocumentParser):
 
             try:
                 self.log.debug(f"Fallback: Calling OCRmyPDF with args: {args}")
-                ocrmypdf.ocr(**args)
+                # Use the same progress callback for fallback
+                if page_count:
+                    ocrmypdf.ocr(
+                        **args,
+                        progress_bar_friendly=ocrmypdf_progress_callback,
+                    )
+                else:
+                    ocrmypdf.ocr(**args)
 
                 # Don't return the archived file here, since this file
                 # is bigger and blurry due to --force-ocr.

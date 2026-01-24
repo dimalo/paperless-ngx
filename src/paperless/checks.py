@@ -221,12 +221,19 @@ def ocr_dependencies_check(app_configs, **kwargs):
     """
     Check OCR engine dependencies
     """
+    if settings.DEBUG and os.environ.get("RUN_MAIN") == "true":
+        return []
+
     msgs = []
+    timeout = 2 if settings.DEBUG else 5
     if settings.OCR_ENGINE == "ollama":
         try:
             import httpx
 
-            response = httpx.get(f"{settings.OLLAMA_ENDPOINT}/api/version", timeout=5)
+            response = httpx.get(
+                f"{settings.OLLAMA_ENDPOINT}/api/version",
+                timeout=timeout,
+            )
             if response.status_code != 200:
                 msgs.append(
                     Warning("Ollama server is not responding properly"),
@@ -248,10 +255,10 @@ def ocr_dependencies_check(app_configs, **kwargs):
 
             # Ping the endpoint to check connectivity
             # Assuming standard status endpoint or just root
-            resp = httpx.get(f"{settings.DOCLING_ENDPOINT}/v1/health", timeout=5)
+            resp = httpx.get(f"{settings.DOCLING_ENDPOINT}/v1/health", timeout=timeout)
             if resp.status_code != 200:
                 # Try root if health fails (some versions might differ)
-                resp = httpx.get(settings.DOCLING_ENDPOINT, timeout=5)
+                resp = httpx.get(settings.DOCLING_ENDPOINT, timeout=timeout)
                 if resp.status_code >= 400 and resp.status_code != 404:
                     msgs.append(
                         Warning(f"Docling server returned status {resp.status_code}"),

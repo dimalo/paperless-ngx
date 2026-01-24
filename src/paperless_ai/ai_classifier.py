@@ -17,28 +17,26 @@ def build_prompt_without_rag(document: Document) -> str:
     content = truncate_content(document.content[:4000] or "")
 
     return f"""
-    You are a document classification assistant.
+    You are a professional document classifier. Your task is to extract metadata from the document below.
 
-    Analyze the following document and extract the following information as a JSON object:
-    - title: A short descriptive title
-    - title_confidence: Confidence score (0.0-1.0) for the title
-    - tags: Array of tags that reflect the content
-    - tags_confidence: Object mapping tag indices to confidence scores (0.0-1.0)
-    - correspondents: Array of names of people or organizations mentioned
-    - correspondents_confidence: Object mapping correspondent indices to confidence scores (0.0-1.0)
-    - document_types: Array of document type categories
-    - document_types_confidence: Object mapping document type indices to confidence scores (0.0-1.0)
-    - storage_paths: Array of suggested folder paths for storing the document
-    - storage_paths_confidence: Object mapping storage path indices to confidence scores (0.0-1.0)
-    - dates: Array of up to 3 relevant dates in YYYY-MM-DD format
+    Output a single, strictly valid JSON object with these fields:
+    - title: (string) A concise, descriptive title.
+    - title_confidence: (float 0.0-1.0)
+    - tags: (list of strings) Keywords or categories.
+    - tags_confidence: (object) Mapping each tag to its 0.0-1.0 confidence score.
+    - correspondents: (list of strings) People or organizations.
+    - correspondents_confidence: (object) Mapping each correspondent to its 0.0-1.0 confidence score.
+    - document_types: (list of strings) e.g. "Invoice", "Letter".
+    - document_types_confidence: (object) Mapping each type to its 0.0-1.0 confidence score.
+    - storage_paths: (list of strings) Suggested folder paths.
+    - storage_paths_confidence: (object) Mapping each path to its 0.0-1.0 confidence score.
+    - dates: (list of strings) Up to 3 dates found in YYYY-MM-DD format.
 
-    Provide confidence scores between 0.0 (no confidence) and 1.0 (full confidence) for each metadata item.
-
-    Filename:
-    {filename}
-
-    Content:
+    Document Filename: {filename}
+    Document Content:
     {content}
+
+    Respond ONLY with the JSON object.
     """.strip()
 
 
@@ -98,38 +96,41 @@ def parse_ai_response(raw: dict) -> dict:
 def parse_ai_response_with_confidence(raw: dict) -> dict:
     """
     Parse AI response and return metadata with confidence scores.
-
-    Returns a dictionary containing metadata fields with their confidence scores.
-    Each field has a 'value' and 'confidence' key for title, or lists of dicts for arrays.
+    Handles confidence lookup by index (int or string) or by the name/value itself.
     """
+
+    def get_conf(field_name, index, value):
+        conf_dict = raw.get(f"{field_name}_confidence", {})
+        # Try by index (int)
+        if index in conf_dict:
+            return conf_dict[index]
+        # Try by index (str)
+        if str(index) in conf_dict:
+            return conf_dict[str(index)]
+        # Try by value (name)
+        if str(value) in conf_dict:
+            return conf_dict[str(value)]
+        return 0.0
+
     return {
         "title": {
             "value": raw.get("title", ""),
             "confidence": raw.get("title_confidence", 0.0),
         },
         "tags": [
-            {"value": tag, "confidence": raw.get("tags_confidence", {}).get(i, 0.0)}
+            {"value": tag, "confidence": get_conf("tags", i, tag)}
             for i, tag in enumerate(raw.get("tags", []))
         ],
         "correspondents": [
-            {
-                "value": corr,
-                "confidence": raw.get("correspondents_confidence", {}).get(i, 0.0),
-            }
+            {"value": corr, "confidence": get_conf("correspondents", i, corr)}
             for i, corr in enumerate(raw.get("correspondents", []))
         ],
         "document_types": [
-            {
-                "value": dt,
-                "confidence": raw.get("document_types_confidence", {}).get(i, 0.0),
-            }
+            {"value": dt, "confidence": get_conf("document_types", i, dt)}
             for i, dt in enumerate(raw.get("document_types", []))
         ],
         "storage_paths": [
-            {
-                "value": sp,
-                "confidence": raw.get("storage_paths_confidence", {}).get(i, 0.0),
-            }
+            {"value": sp, "confidence": get_conf("storage_paths", i, sp)}
             for i, sp in enumerate(raw.get("storage_paths", []))
         ],
         "dates": raw.get("dates", []),

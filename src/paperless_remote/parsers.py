@@ -2,7 +2,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from paperless_tesseract.parsers import RasterisedDocumentParser
+from documents.parsers import ImageDocumentParser
 
 
 class RemoteEngineConfig:
@@ -23,7 +23,7 @@ class RemoteEngineConfig:
         return valid
 
 
-class RemoteDocumentParser(RasterisedDocumentParser):
+class RemoteDocumentParser(ImageDocumentParser):
     """
     This parser uses a remote OCR engine to parse documents. Currently, it supports Azure AI Vision
     as this is the only service that provides a remote OCR API with text-embedded PDF output.
