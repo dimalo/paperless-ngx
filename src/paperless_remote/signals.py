@@ -11,6 +11,11 @@ def get_supported_mime_types():
 
 
 def remote_consumer_declaration(sender, **kwargs):
+    from django.conf import settings
+
+    if not settings.REMOTE_OCR_ENGINE:
+        return None
+
     return {
         "parser": get_parser,
         "weight": 5,

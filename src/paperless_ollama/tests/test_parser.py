@@ -13,6 +13,16 @@ from paperless_ollama.parsers import OllamaDocumentParser
 class TestOllamaParser(DirectoriesMixin, TestCase):
     SAMPLE_FILES = Path(__file__).resolve().parent / "samples"
 
+    def test_consumer_declaration(self):
+        """Test that the parser is only registered when enabled."""
+        from paperless_ollama.signals import ollama_consumer_declaration
+
+        with self.settings(OCR_ENGINE="tesseract"):
+            self.assertIsNone(ollama_consumer_declaration(None))
+
+        with self.settings(OCR_ENGINE="ollama"):
+            self.assertIsNotNone(ollama_consumer_declaration(None))
+
     @mock.patch("img2pdf.convert", return_value=b"pdf data")
     @mock.patch("litellm.completion")
     def test_parse_image_success(self, mock_completion, mock_img2pdf):
@@ -73,7 +83,9 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 parser.parse(pdf_path, "application/pdf")
 
                 self.assertEqual(parser.text, "Page 1 text.")
-                self.assertEqual(parser.archive_path, pdf_path)
+                # Since we didn't mock generate_pdf_from_markdown or result in overlay,
+                # and fallback for PDF is None (to avoid deleting original), it should be None.
+                self.assertIsNone(parser.archive_path)
                 mock_convert.assert_called_once_with(pdf_path)
                 mock_process.assert_called_once_with(Path("dummy.png"))
             finally:

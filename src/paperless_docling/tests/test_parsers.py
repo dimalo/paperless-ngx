@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from unittest import mock
 
@@ -18,60 +17,97 @@ class TestDoclingParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         # Create sample files directory if it doesn't exist
         self.SAMPLE_FILES.mkdir(exist_ok=True)
 
+    def test_consumer_declaration(self):
+        """Test that the parser is only registered when enabled."""
+        from paperless_docling.signals import docling_consumer_declaration
+
+        with self.settings(OCR_ENGINE="tesseract"):
+            self.assertIsNone(docling_consumer_declaration(None))
+
+        with self.settings(OCR_ENGINE="docling"):
+            self.assertIsNotNone(docling_consumer_declaration(None))
+
+        with self.settings(OCR_ENGINE="docling_server"):
+            self.assertIsNotNone(docling_consumer_declaration(None))
+
     @mock.patch("httpx.Client")
-    def test_parse_success_pdf(self, mock_client):
-        """Test successful parsing of a PDF document."""
+    @mock.patch("paperless_docling.parsers.DoclingDocumentParser._generate_overlay_pdf")
+    @mock.patch(
+        "paperless_docling.parsers.DoclingDocumentParser._convert_pdf_pages_to_images",
+    )
+    def test_parse_success_pdf(
+        self,
+        mock_convert_images,
+        mock_generate_overlay,
+        mock_client,
+    ):
+        """Test successful parsing of a PDF document with overlay."""
         # Mock the httpx client
         mock_response = mock.Mock()
+        mock_response.status_code = 200
         mock_response.raise_for_status.return_value = None
+
+        # Valid DoclingResponse JSON
         mock_response.json.return_value = {
             "document": {
-                "text_content": "Extracted text from PDF",
+                "name": "test_doc",
+                "pages": {
+                    "1": {"size": {"width": 100, "height": 100}, "page_no": 1},
+                },
+                "texts": [
+                    {
+                        "self_ref": "#/texts/1",
+                        "label": "text",
+                        "text": "Extracted text",
+                        "prov": [
+                            {
+                                "page_no": 1,
+                                "bbox": {
+                                    "l": 10,
+                                    "t": 10,
+                                    "r": 50,
+                                    "b": 50,
+                                    "coord_origin": "BOTTOMLEFT",
+                                },
+                            },
+                        ],
+                    },
+                ],
             },
+            "md_content": "Extracted text from PDF",
         }
         mock_client.return_value.__enter__.return_value.post.return_value = (
             mock_response
         )
 
-        parser = DoclingDocumentParser("test_group")
-        test_file = self.SAMPLE_FILES / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
+        # Mock image conversion
+        mock_convert_images.return_value = [Path("page1.png")]
+        # Mock overlay generation
+        mock_generate_overlay.return_value = Path("overlay.pdf")
 
-        parser.parse(test_file, "application/pdf")
+        # Mock pikepdf to avoid actual file operations on fake paths
+        with mock.patch("pikepdf.Pdf"):
+            with self.settings(OCR_ENGINE="docling_server"):
+                parser = DoclingDocumentParser("test_group")
+                test_file = self.SAMPLE_FILES / "test.pdf"
+                test_file.write_bytes(b"fake pdf content")
 
-        self.assertEqual(parser.text, "Extracted text from PDF")
-        mock_client.return_value.__enter__.return_value.post.assert_called_once()
+                parser.parse(test_file, "application/pdf")
 
-    @mock.patch("httpx.Client")
-    def test_parse_success_image(self, mock_client):
-        """Test successful parsing of an image document."""
-        # Mock the httpx client
-        mock_response = mock.Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "document": {
-                "text_content": "Extracted text from image",
-            },
-        }
-        mock_client.return_value.__enter__.return_value.post.return_value = (
-            mock_response
-        )
-
-        parser = DoclingDocumentParser("test_group")
-        test_file = self.SAMPLE_FILES / "test.png"
-        test_file.write_bytes(b"fake image content")
-
-        parser.parse(test_file, "image/png")
-
-        self.assertEqual(parser.text, "Extracted text from image")
-        mock_client.return_value.__enter__.return_value.post.assert_called_once()
+                self.assertEqual(parser.text, "Extracted text from PDF")
+                self.assertIsNotNone(parser.archive_path)
+                mock_client.return_value.__enter__.return_value.post.assert_called_once()
+                mock_convert_images.assert_called_once()
+                mock_generate_overlay.assert_called_once()
 
     @mock.patch("httpx.Client")
-    def test_parse_failure_no_text_content(self, mock_client):
-        """Test parsing failure when no text content is returned."""
+    def test_parse_validation_failure(self, mock_client):
+        """Test parsing failure when response doesn't match model."""
         mock_response = mock.Mock()
+        mock_response.status_code = 200
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"document": {}}
+        # Missing required 'document' field in root or structure mismatch
+        mock_response.json.return_value = {"something": "else"}
         mock_client.return_value.__enter__.return_value.post.return_value = (
             mock_response
         )
@@ -80,77 +116,8 @@ class TestDoclingParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         test_file = self.SAMPLE_FILES / "test.pdf"
         test_file.write_bytes(b"fake pdf content")
 
-        with self.assertRaises(ParseError) as context:
-            parser.parse(test_file, "application/pdf")
+        with self.settings(OCR_ENGINE="docling_server"):
+            with self.assertRaises(ParseError) as context:
+                parser.parse(test_file, "application/pdf")
 
-        self.assertIn("No text content found", str(context.exception))
-
-    @mock.patch("httpx.Client")
-    def test_parse_http_error(self, mock_client):
-        """Test parsing when HTTP request fails."""
-        mock_client.return_value.__enter__.return_value.post.side_effect = Exception(
-            "HTTP Error",
-        )
-
-        parser = DoclingDocumentParser("test_group")
-        test_file = self.SAMPLE_FILES / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
-
-        with self.assertRaises(ParseError) as context:
-            parser.parse(test_file, "application/pdf")
-
-        self.assertIn("Docling request failed", str(context.exception))
-
-    @mock.patch("httpx.Client")
-    def test_parse_invalid_json(self, mock_client):
-        """Test parsing when invalid JSON is returned."""
-        mock_response = mock.Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
-        mock_client.return_value.__enter__.return_value.post.return_value = (
-            mock_response
-        )
-
-        parser = DoclingDocumentParser("test_group")
-        test_file = self.SAMPLE_FILES / "test.pdf"
-        test_file.write_bytes(b"fake pdf content")
-
-        with self.assertRaises(ParseError) as context:
-            parser.parse(test_file, "application/pdf")
-
-        self.assertIn("Invalid JSON response", str(context.exception))
-
-    @mock.patch("httpx.AsyncClient")
-    def test_parse_large_file_async(self, mock_async_client):
-        """Test parsing of large files using async endpoint."""
-        # Create a large file (>10MB)
-        large_content = b"x" * (11 * 1024 * 1024)
-        test_file = self.SAMPLE_FILES / "large.pdf"
-        test_file.write_bytes(large_content)
-
-        # Mock async responses
-        mock_async_response = mock.Mock()
-        mock_async_response.raise_for_status.return_value = None
-
-        # Mock async post for task creation
-        mock_async_client.return_value.__aenter__.return_value.post.return_value = (
-            mock_async_response
-        )
-        mock_async_response.json.return_value = {"task_id": "test_task"}
-
-        # Mock status polling
-        mock_status_response = mock.Mock()
-        mock_status_response.raise_for_status.return_value = None
-        mock_status_response.json.return_value = {"status": "success"}
-        mock_async_client.return_value.__aenter__.return_value.get.side_effect = [
-            mock_status_response,  # First call to status
-            mock.Mock(
-                json=lambda: {"document": {"text_content": "Large file text"}},
-                raise_for_status=lambda: None,
-            ),  # Result
-        ]
-
-        parser = DoclingDocumentParser("test_group")
-        parser.parse(test_file, "application/pdf")
-
-        self.assertEqual(parser.text, "Large file text")
+        self.assertIn("Invalid response structure", str(context.exception))

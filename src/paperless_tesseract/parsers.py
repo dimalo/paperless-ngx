@@ -332,19 +332,9 @@ class RasterisedDocumentParser(ImageDocumentParser):
         if page_count:
             self.log.debug(f"Document has {page_count} pages")
 
-        # Create a progress callback for OCRmyPDF
-        def ocrmypdf_progress_callback(page_number, page_count):
-            """Called by OCRmyPDF for each page processed"""
-            self.log.debug(f"OCRmyPDF processing page {page_number}/{page_count}")
-            self.progress(page_number, page_count)
-
         try:
             self.log.debug(f"Calling OCRmyPDF with args: {args}")
-            # OCRmyPDF supports a progress_bar_friendly callback
-            if page_count:
-                ocrmypdf.ocr(**args, progress_bar_friendly=ocrmypdf_progress_callback)
-            else:
-                ocrmypdf.ocr(**args)
+            ocrmypdf.ocr(**args)
 
             if self.settings.skip_archive_file != ArchiveFileChoices.ALWAYS:
                 self.archive_path = archive_path
@@ -391,14 +381,7 @@ class RasterisedDocumentParser(ImageDocumentParser):
 
             try:
                 self.log.debug(f"Fallback: Calling OCRmyPDF with args: {args}")
-                # Use the same progress callback for fallback
-                if page_count:
-                    ocrmypdf.ocr(
-                        **args,
-                        progress_bar_friendly=ocrmypdf_progress_callback,
-                    )
-                else:
-                    ocrmypdf.ocr(**args)
+                ocrmypdf.ocr(**args)
 
                 # Don't return the archived file here, since this file
                 # is bigger and blurry due to --force-ocr.

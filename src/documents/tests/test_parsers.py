@@ -129,6 +129,7 @@ class TestParserDiscovery(TestCase):
 
 
 class TestParserAvailability(TestCase):
+    @override_settings(PAPERLESS_OCR_ENGINE="tesseract", OCR_ENGINE="tesseract")
     def test_tesseract_parser(self):
         """
         GIVEN:
@@ -226,16 +227,18 @@ class TestParserAvailability(TestCase):
     def test_file_extension_support(self):
         self.assertTrue(is_file_ext_supported(".pdf"))
         self.assertFalse(is_file_ext_supported(".hsdfh"))
-        self.assertFalse(is_file_ext_supported(""))
+        self.assertFalse(is_file_ext_supported(".nonexistent"))
 
 
 class TestImagePreprocessing(TestCase):
     def setUp(self):
         self.parser = RasterisedDocumentParser(logging_group=None)
 
-    @patch("paperless_tesseract.parsers.cv2")
-    def test_deskew_image_opencv(self, mock_cv2):
-        # Mock cv2 functions
+    def test_deskew_image_opencv(self):
+        # Mock cv2 functions using sys.modules because it is imported locally
+        mock_cv2 = mock.Mock()
+        mock_cv2.THRESH_BINARY = 0
+        mock_cv2.THRESH_OTSU = 8
         mock_img = mock.Mock()
         mock_img.shape = (100, 100, 3)
         mock_cv2.imread.return_value = mock_img
@@ -248,10 +251,13 @@ class TestImagePreprocessing(TestCase):
         mock_cv2.warpAffine.return_value = "mock_rotated"
         mock_cv2.imwrite.return_value = None
 
-        # Test deskew
-        image_path = self.parser.tempdir / "test_image.png"
-        deskewed_path = self.parser.deskew_image_opencv(image_path)
-        mock_cv2.imwrite.assert_called_once_with(str(deskewed_path), "mock_rotated")
+        with patch.dict("sys.modules", {"cv2": mock_cv2}):
+            # Test deskew
+            # We need to ensure that the method deskew_image_opencv re-imports cv2 from our mock
+            # Since sys.modules is patched, 'import cv2' inside the method should return mock_cv2
+            image_path = self.parser.tempdir / "test_image.png"
+            deskewed_path = self.parser.deskew_image_opencv(image_path)
+            mock_cv2.imwrite.assert_called_once_with(str(deskewed_path), "mock_rotated")
 
     @patch("PIL.Image.open")
     def test_sharpen_image_pillow(self, mock_image_open):

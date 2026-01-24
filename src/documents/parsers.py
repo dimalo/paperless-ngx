@@ -73,6 +73,9 @@ def get_default_file_extension(mime_type: str) -> str:
     """
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         if mime_type in supported_mime_types:
@@ -101,6 +104,9 @@ def get_supported_file_extensions() -> set[str]:
     extensions = set()
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         for mime_type in supported_mime_types:
@@ -123,6 +129,9 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
 
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         if mime_type in supported_mime_types:
@@ -133,7 +142,17 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
 
     def get_priority(declaration):
         parser_class = declaration["parser"]
-        ocr_engine = getattr(settings, "PAPERLESS_OCR_ENGINE", "tesseract")
+
+        # Check Application Configuration first
+        from paperless.models import ApplicationConfiguration
+
+        config = ApplicationConfiguration.objects.first()
+        ocr_engine = (
+            config.ocr_engine
+            if config and config.ocr_engine
+            else getattr(settings, "OCR_ENGINE", "tesseract")
+        )
+
         if (
             ocr_engine == "docling" and parser_class.__name__ == "DoclingDocumentParser"
         ) or (
