@@ -28,6 +28,7 @@ import {
   PaperlessConfigOptions,
 } from 'src/app/data/paperless-config'
 import { ConfigService } from 'src/app/services/config.service'
+import { LLMService } from 'src/app/services/llm.service'
 import { OllamaService } from 'src/app/services/ollama.service'
 import { SettingsService } from 'src/app/services/settings.service'
 import { ToastService } from 'src/app/services/toast.service'
@@ -67,12 +68,15 @@ export class ConfigComponent
   private toastService = inject(ToastService)
   private settingsService = inject(SettingsService)
   private ollamaService = inject(OllamaService)
+  private llmService = inject(LLMService)
   private http = inject(HttpClient)
 
   public readonly ConfigOptionType = ConfigOptionType
 
   // generated dynamically
   public configForm = new FormGroup({})
+
+  public llmTestInProgress = false
 
   public errors = {}
 
@@ -204,6 +208,55 @@ export class ConfigComponent
         }
       })
     }
+  }
+
+  public testLLMConnection() {
+    this.llmTestInProgress = true
+    const endpoint = this.configForm.get('llm_endpoint')?.value
+    const backend = this.configForm.get('llm_backend')?.value
+    const apiKey = this.configForm.get('llm_api_key')?.value
+    // Use current model or default
+    const model = this.configForm.get('llm_model')?.value
+
+    this.llmService
+      .testConnection({
+        endpoint,
+        backend,
+        api_key: apiKey,
+        model,
+      })
+      .subscribe({
+        next: (result) => {
+          this.llmTestInProgress = false
+          if (result.success) {
+            this.toastService.showInfo(
+              $localize`Connection successful! Latency: ${result.latency_ms}ms`
+            )
+            // Fetch models
+            this.llmService.getModels(endpoint, backend).subscribe((models) => {
+              const modelOption = PaperlessConfigOptions.find(
+                (o) => o.key === 'llm_model'
+              )
+              if (modelOption) {
+                modelOption.choices = models
+                if (models.length > 0) {
+                  // If current model is not in list, maybe warn or clear?
+                  // But we don't want to clear valid config if fetch fails or is partial.
+                  console.log(`Fetched ${models.length} models for LLM`)
+                }
+              }
+            })
+          } else {
+            this.toastService.showError(
+              $localize`Connection failed: ${result.error}`
+            )
+          }
+        },
+        error: (e) => {
+          this.llmTestInProgress = false
+          this.toastService.showError($localize`Test connection failed`, e)
+        },
+      })
   }
 
   ngOnDestroy(): void {

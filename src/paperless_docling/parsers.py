@@ -176,7 +176,11 @@ class DoclingDocumentParser(RasterisedDocumentParser):
             else:
                 # Fallback if Gotenberg unavailable or no text
                 if mime_type == "application/pdf":
-                    self.archive_path = document_path
+                    # If Gotenberg fails, we DON'T want to set self.archive_path = document_path
+                    # because tasks.py will shutil.move() it, effectively deleting the original
+                    # from the originals folder.
+                    self.log.info("No archive version generated (Gotenberg failed).")
+                    self.archive_path = None
 
         except httpx.TimeoutException as e:
             raise ParseError(

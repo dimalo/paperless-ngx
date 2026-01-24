@@ -1,6 +1,8 @@
+import logging
 from collections import OrderedDict
 from pathlib import Path
 
+import litellm
 import requests
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
@@ -46,6 +48,8 @@ from paperless.serialisers import PaperlessAuthTokenSerializer
 from paperless.serialisers import ProfileSerializer
 from paperless.serialisers import UserSerializer
 from paperless_ai.indexing import vector_store_file_exists
+
+logger = logging.getLogger("paperless.views")
 
 
 class PaperlessObtainAuthTokenView(ObtainAuthToken):
@@ -461,10 +465,159 @@ class SocialAccountProvidersView(GenericAPIView):
         return Response(sorted(resp, key=lambda p: p["name"]))
 
 
-class OllamaProxyView(GenericAPIView):
+class LLMProxyView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def _get_endpoint(self, request):
+        # check if passed in body
+        endpoint = request.data.get("endpoint")
+        if not endpoint:
+            endpoint = request.query_params.get("endpoint")
+
+        # If not passed, check configured backend
+        if not endpoint:
+            # We can use the generic AIConfig too
+            from paperless.config import AIConfig
+            from paperless.config import OllamaConfig
+
+            # Ideally we check which backend is being tested
+            backend = request.data.get("backend") or request.query_params.get("backend")
+
+            if backend == "ollama":
+                config = OllamaConfig()
+                endpoint = config.endpoint
+            else:
+                # Default to AIConfig lookup if matching backend
+                ai_config = AIConfig()
+                if ai_config.llm_backend == backend:
+                    endpoint = ai_config.llm_endpoint
+
+        return endpoint
+
+    def _normalize_endpoint(self, endpoint):
+        if not endpoint:
+            return None
+
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+
+        return endpoint.rstrip("/")
+
+    def get(self, request, path=None, *args, **kwargs):
+        endpoint = self._get_endpoint(request)
+        endpoint = self._normalize_endpoint(endpoint)
+
+        backend = request.query_params.get("backend")
+
+        # For OpenAI-compatible or other providers that don't need proxying for models,
+        # we can return a static list or filtered list
+        if backend == "openai" or not endpoint:
+            # Return common OpenAI models
+            return Response(
+                [
+                    {"id": "gpt-4o", "name": "gpt-4o"},
+                    {"id": "gpt-4-turbo", "name": "gpt-4-turbo"},
+                    {"id": "gpt-4", "name": "gpt-4"},
+                    {"id": "gpt-3.5-turbo", "name": "gpt-3.5-turbo"},
+                ],
+            )
+
+        # For Ollama, proxy to /api/tags to get actual models
+        if backend == "ollama" and endpoint:
+            try:
+                url = f"{endpoint}/api/tags"
+                response = requests.get(url, timeout=5)
+                if response.status_code == 200:
+                    return Response(response.json())
+            except Exception as e:
+                logger.warning(f"Failed to fetch Ollama models from {url}: {e}")
+
+        return Response([])
+
+    def post(self, request, path=None, *args, **kwargs):
+        # Handle test connection
+        if path == "test":
+            return self.test_connection(request)
+        return Response(status=404)
+
+    def test_connection(self, request):
+        endpoint = self._get_endpoint(request)
+        endpoint = self._normalize_endpoint(endpoint)
+
+        backend = request.data.get("backend") or "ollama"
+        api_key = request.data.get("api_key")
+        model = request.data.get("model") or "test"
+
+        try:
+            import time
+
+            start_time = time.time()
+
+            # FAST PATH for Ollama: Check version instead of full generation
+            if backend == "ollama" and endpoint:
+                try:
+                    resp = requests.get(f"{endpoint}/api/version", timeout=5)
+                    if resp.status_code == 200:
+                        latency = int((time.time() - start_time) * 1000)
+                        return Response(
+                            {
+                                "success": True,
+                                "latency_ms": latency,
+                                "model_info": {
+                                    "provider": backend,
+                                    "version": resp.json().get("version"),
+                                },
+                            },
+                        )
+                except Exception as e:
+                    logger.warning(f"Ollama fast version check failed: {e}")
+                    # Fallback to standard generation test if version check fails
+
+            # Construct model name with prefix if needed
+            model_name = f"{backend}/{model}" if "/" not in model else model
+
+            # Determine params based on backend
+            params = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": "Hi"}],
+                "api_key": api_key,
+                # Short timeout for testing
+                "timeout": 30,
+            }
+
+            if endpoint:
+                params["api_base"] = endpoint
+
+            # Make request
+            _response = litellm.completion(**params)
+
+            latency = int((time.time() - start_time) * 1000)
+
+            return Response(
+                {
+                    "success": True,
+                    "latency_ms": latency,
+                    "model_info": {
+                        "provider": backend,
+                        "model": model_name,
+                    },
+                },
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "success": False,
+                    "error": str(e),
+                },
+            )
+
+
+class OllamaProxyView(LLMProxyView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_endpoint(self, request):
+        # Original logic for backward compatibility
         endpoint = request.query_params.get("endpoint")
         if not endpoint:
             from paperless.config import OllamaConfig
@@ -494,6 +647,12 @@ class OllamaProxyView(GenericAPIView):
             return Response({"error": str(e)}, status=400)
 
     def post(self, request, path=None, *args, **kwargs):
+        # We need to check if it's the test endpoint from the base class
+        # But the original OllamaProxyView used path for proxying too.
+        # "path" comes from the URL capture.
+        if path == "test":
+            return self.test_connection(request)
+
         endpoint = self._get_endpoint(request)
         if not endpoint:
             return HttpResponseBadRequest("Ollama endpoint not configured")

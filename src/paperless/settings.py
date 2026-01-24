@@ -906,6 +906,7 @@ LOGGING = {
         "kombu": {"handlers": ["file_celery"], "level": "DEBUG"},
         "_granian": {"handlers": ["file_paperless"], "level": "DEBUG"},
         "granian.access": {"handlers": ["file_paperless"], "level": "DEBUG"},
+        "LiteLLM": {"handlers": ["console"], "level": "WARNING", "propagate": False},
     },
 }
 
@@ -1191,6 +1192,7 @@ OLLAMA_ENDPOINT = os.getenv("PAPERLESS_OLLAMA_ENDPOINT", "http://localhost:11434
 OLLAMA_MODEL = os.getenv("PAPERLESS_OLLAMA_MODEL", "deepseek-ocr")
 OLLAMA_PROMPT_TEMPLATE = os.getenv("PAPERLESS_OLLAMA_PROMPT_TEMPLATE", "")
 OLLAMA_TIMEOUT = __get_int("PAPERLESS_OLLAMA_TIMEOUT", 30)
+OLLAMA_OCR_DEBUG_THUMBNAIL = __get_boolean("PAPERLESS_OLLAMA_OCR_DEBUG_THUMBNAIL")
 DOCLING_FORCE_OCR = __get_boolean("PAPERLESS_DOCLING_FORCE_OCR")
 DOCLING_LANGUAGE = os.getenv("PAPERLESS_DOCLING_LANGUAGE", OCR_LANGUAGE)
 DOCLING_ENDPOINT = os.getenv("PAPERLESS_DOCLING_ENDPOINT", "http://localhost:5001")
@@ -1470,6 +1472,7 @@ LLM_BACKEND = os.getenv("PAPERLESS_AI_LLM_BACKEND")  # "ollama" or "openai"
 LLM_MODEL = os.getenv("PAPERLESS_AI_LLM_MODEL")
 LLM_API_KEY = os.getenv("PAPERLESS_AI_LLM_API_KEY")
 LLM_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_ENDPOINT")
+LLM_TIMEOUT = __get_int("PAPERLESS_AI_LLM_TIMEOUT", 120)
 
 # AI Auto-enhancement settings
 PAPERLESS_AI_AUTO_ASSIGN = __get_boolean("PAPERLESS_AI_AUTO_ASSIGN", "NO")

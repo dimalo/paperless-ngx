@@ -213,6 +213,7 @@ class AIConfig(BaseConfig):
     llm_model: str = dataclasses.field(init=False)
     llm_api_key: str = dataclasses.field(init=False)
     llm_endpoint: str = dataclasses.field(init=False)
+    llm_timeout: int = dataclasses.field(init=False)
     enable_auto_ai_enhancement: bool = dataclasses.field(init=False)
     confidence_threshold: float = dataclasses.field(init=False)
     auto_create_threshold: float = dataclasses.field(init=False)
@@ -238,6 +239,7 @@ class AIConfig(BaseConfig):
         self.llm_model = app_config.llm_model or settings.LLM_MODEL
         self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY
         self.llm_endpoint = app_config.llm_endpoint or settings.LLM_ENDPOINT
+        self.llm_timeout = app_config.llm_timeout or settings.LLM_TIMEOUT
 
         # Auto-enhancement settings
         self.enable_auto_ai_enhancement = getattr(
@@ -398,6 +400,7 @@ class OllamaConfig(BaseConfig):
     sharpen_percent: float = dataclasses.field(init=False)
     sharpen_threshold: float = dataclasses.field(init=False)
     alignment_threshold: float = dataclasses.field(init=False)
+    ollama_ocr_debug_thumbnail: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -408,6 +411,11 @@ class OllamaConfig(BaseConfig):
             app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE
         )
         self.timeout = app_config.ollama_timeout or settings.OLLAMA_TIMEOUT
+        self.ollama_ocr_debug_thumbnail = (
+            getattr(app_config, "ollama_ocr_debug_thumbnail", None)
+            if hasattr(app_config, "ollama_ocr_debug_thumbnail")
+            else settings.OLLAMA_OCR_DEBUG_THUMBNAIL
+        )
         self.sharpen = (
             app_config.ocr_sharpen
             if app_config.ocr_sharpen is not None

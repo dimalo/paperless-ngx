@@ -52,6 +52,7 @@ from paperless.views import DoclingProxyView
 from paperless.views import FaviconView
 from paperless.views import GenerateAuthTokenView
 from paperless.views import GroupViewSet
+from paperless.views import LLMProxyView
 from paperless.views import OllamaProxyView
 from paperless.views import PaperlessObtainAuthTokenView
 from paperless.views import ProfileView
@@ -204,6 +205,11 @@ urlpatterns = [
                     "^status/",
                     SystemStatusView.as_view(),
                     name="system_status",
+                ),
+                re_path(
+                    "^llm_proxy/(?P<path>.*)$",
+                    LLMProxyView.as_view(),
+                    name="llm_proxy",
                 ),
                 re_path(
                     "^ollama_proxy/(?P<path>.*)$",

@@ -131,3 +131,28 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 parser.parse(file_path, "application/msword")
         finally:
             file_path.unlink(missing_ok=True)
+
+    def test_call_ollama_api_prompt_order(self):
+        """
+        Test that the image is sent before the text in the prompt.
+        """
+        parser = OllamaDocumentParser(uuid.uuid4())
+
+        with mock.patch("litellm.completion") as mock_completion:
+            mock_response = mock.Mock()
+            mock_response.choices = [mock.Mock(message=mock.Mock(content="result"))]
+            mock_completion.return_value = mock_response
+
+            parser._call_ollama_api("dummy_base64", "test prompt")
+
+            call_args = mock_completion.call_args
+            self.assertIsNotNone(call_args)
+
+            # Check messages structure
+            messages = call_args[1]["messages"]
+            content = messages[0]["content"]
+
+            self.assertEqual(len(content), 2)
+            self.assertEqual(content[0]["type"], "image_url")
+            self.assertEqual(content[1]["type"], "text")
+            self.assertEqual(content[1]["text"], "test prompt")

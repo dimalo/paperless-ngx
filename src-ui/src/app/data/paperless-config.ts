@@ -224,6 +224,13 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.OCR,
   },
   {
+    key: 'ollama_ocr_debug_thumbnail',
+    title: $localize`Debug Thumbnails`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OLLAMA_OCR_DEBUG_THUMBNAIL',
+    category: ConfigCategory.OCR,
+  },
+  {
     key: 'tesseract_header',
     title: $localize`Tesseract Settings`,
     type: ConfigOptionType.Header,
@@ -408,12 +415,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'PAPERLESS_CONSUMER_TAG_BARCODE_MAPPING',
     category: ConfigCategory.Barcode,
   },
-  {
-    key: 'ai_general_header',
-    title: $localize`General AI Settings`,
-    type: ConfigOptionType.Header,
-    category: ConfigCategory.AI,
-  },
+  // AI Settings - Global Enable Switch (no header)
   {
     key: 'ai_enabled',
     title: $localize`AI Enabled`,
@@ -422,19 +424,11 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
     note: $localize`Consider privacy implications when enabling AI features, especially if using a remote model.`,
   },
+  // LLM Configuration
   {
-    key: 'llm_embedding_backend',
-    title: $localize`LLM Embedding Backend`,
-    type: ConfigOptionType.Select,
-    choices: mapToItems(LLMEmbeddingBackendConfig),
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_BACKEND',
-    category: ConfigCategory.AI,
-  },
-  {
-    key: 'llm_embedding_model',
-    title: $localize`LLM Embedding Model`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
+    key: 'ai_llm_header',
+    title: $localize`LLM Configuration`,
+    type: ConfigOptionType.Header,
     category: ConfigCategory.AI,
   },
   {
@@ -446,10 +440,10 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'llm_model',
-    title: $localize`LLM Model`,
+    key: 'llm_endpoint',
+    title: $localize`LLM Endpoint`,
     type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_MODEL',
+    config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,
   },
   {
@@ -460,15 +454,46 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'llm_endpoint',
-    title: $localize`LLM Endpoint`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
+    key: 'llm_model',
+    title: $localize`LLM Model`,
+    type: ConfigOptionType.Select,
+    choices: [],
+    config_key: 'PAPERLESS_AI_LLM_MODEL',
     category: ConfigCategory.AI,
   },
   {
+    key: 'llm_timeout',
+    title: $localize`LLM Timeout (seconds)`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_LLM_TIMEOUT',
+    category: ConfigCategory.AI,
+  },
+  // Embedding Configuration
+  {
+    key: 'ai_embedding_header',
+    title: $localize`Embedding Configuration`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_backend',
+    title: $localize`Embedding Backend`,
+    type: ConfigOptionType.Select,
+    choices: mapToItems(LLMEmbeddingBackendConfig),
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_BACKEND',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_model',
+    title: $localize`Embedding Model`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
+    category: ConfigCategory.AI,
+  },
+  // Auto-Enhancement
+  {
     key: 'ai_autotag_header',
-    title: $localize`Auto Tagging & Classification`,
+    title: $localize`Auto-Enhancement`,
     type: ConfigOptionType.Header,
     category: ConfigCategory.AI,
   },
@@ -494,6 +519,14 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
+    key: 'force_ai_update',
+    title: $localize`Force AI Update`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_AI_FORCE_UPDATE',
+    category: ConfigCategory.AI,
+  },
+  // Safety & Operations
+  {
     key: 'ai_safety_header',
     title: $localize`Safety & Operations`,
     type: ConfigOptionType.Header,
@@ -514,10 +547,10 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'audit_log_level',
-    title: $localize`Audit Log Level`,
-    type: ConfigOptionType.String,
-    config_key: 'AUDIT_LOG_LEVEL',
+    key: 'graceful_degradation',
+    title: $localize`Graceful Degradation`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'GRACEFUL_DEGRADATION',
     category: ConfigCategory.AI,
   },
   {
@@ -535,17 +568,10 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'graceful_degradation',
-    title: $localize`Graceful Degradation`,
-    type: ConfigOptionType.Boolean,
-    config_key: 'GRACEFUL_DEGRADATION',
-    category: ConfigCategory.AI,
-  },
-  {
-    key: 'force_ai_update',
-    title: $localize`Force AI Update`,
-    type: ConfigOptionType.Boolean,
-    config_key: 'PAPERLESS_AI_FORCE_UPDATE',
+    key: 'audit_log_level',
+    title: $localize`Audit Log Level`,
+    type: ConfigOptionType.String,
+    config_key: 'AUDIT_LOG_LEVEL',
     category: ConfigCategory.AI,
   },
 ]
@@ -583,8 +609,8 @@ export interface PaperlessConfig extends ObjectWithId {
   llm_backend: string
   llm_model: string
   llm_api_key: string
-
   llm_endpoint: string
+  llm_timeout: number
   ocr_engine: string
   ocr_sharpen: boolean
   ocr_sharpen_radius: number
@@ -600,6 +626,7 @@ export interface PaperlessConfig extends ObjectWithId {
   ollama_model: string
   ollama_timeout: number
   ollama_prompt_template: string
+  ollama_ocr_debug_thumbnail: boolean
   enable_auto_ai_enhancement: boolean
   confidence_threshold: number
   auto_create_threshold: number

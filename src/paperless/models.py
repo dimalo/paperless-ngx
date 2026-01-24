@@ -333,6 +333,12 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=256,
     )
 
+    llm_timeout = models.PositiveIntegerField(
+        verbose_name=_("LLM request timeout (seconds)"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
     """
     OCR engine settings
     """
@@ -375,6 +381,11 @@ class ApplicationConfiguration(AbstractSingletonModel):
         verbose_name=_("Ollama timeout"),
         null=True,
         validators=[MinValueValidator(1)],
+    )
+
+    ollama_ocr_debug_thumbnail = models.BooleanField(
+        verbose_name=_("Ollama OCR debug thumbnail"),
+        null=True,
     )
 
     docling_force_ocr = models.BooleanField(
