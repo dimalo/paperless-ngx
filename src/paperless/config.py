@@ -193,8 +193,8 @@ class GeneralConfig(BaseConfig):
     General application settings that require global scope
     """
 
-    app_title: str = dataclasses.field(init=False)
-    app_logo: str = dataclasses.field(init=False)
+    app_title: str | None = dataclasses.field(init=False)
+    app_logo: str | None = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -210,14 +210,14 @@ class AIConfig(BaseConfig):
     """
 
     ai_enabled: bool = dataclasses.field(init=False)
-    llm_embedding_backend: str = dataclasses.field(init=False)
-    llm_embedding_endpoint: str = dataclasses.field(init=False)
-    llm_embedding_api_key: str = dataclasses.field(init=False)
-    llm_backend: str = dataclasses.field(init=False)
-    llm_model: str = dataclasses.field(init=False)
-    llm_api_key: str = dataclasses.field(init=False)
-    llm_endpoint: str = dataclasses.field(init=False)
-    llm_timeout: int = dataclasses.field(init=False)
+    llm_embedding_backend: str | None = dataclasses.field(init=False)
+    llm_embedding_endpoint: str | None = dataclasses.field(init=False)
+    llm_embedding_api_key: str | None = dataclasses.field(init=False)
+    llm_backend: str | None = dataclasses.field(init=False)
+    llm_model: str | None = dataclasses.field(init=False)
+    llm_api_key: str | None = dataclasses.field(init=False)
+    llm_endpoint: str | None = dataclasses.field(init=False)
+    llm_timeout: int | None = dataclasses.field(init=False)
     enable_auto_ai_enhancement: bool = dataclasses.field(init=False)
     confidence_threshold: float = dataclasses.field(init=False)
     auto_create_threshold: float = dataclasses.field(init=False)
@@ -479,7 +479,7 @@ class OllamaConfig(BaseConfig):
     sharpen_percent: float = dataclasses.field(init=False)
     sharpen_threshold: float = dataclasses.field(init=False)
     alignment_threshold: float = dataclasses.field(init=False)
-    ollama_ocr_debug_thumbnail: bool = dataclasses.field(init=False)
+    ollama_ocr_debug_thumbnail: bool | None = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import cast
 
 import llama_index.core.settings as llama_settings
 from django.conf import settings
@@ -32,7 +33,7 @@ def build_document_node(document: Document) -> list[BaseNode]:
     """
     text = build_llm_index_text(document)
     metadata = {
-        "document_id": str(document.id),
+        "document_id": str(document.pk),
         "title": document.title,
         "tags": [t.name for t in document.tags.all()],
         "correspondent": document.correspondent.name
@@ -50,7 +51,7 @@ def build_document_node(document: Document) -> list[BaseNode]:
     return parser.get_nodes_from_documents([doc])
 
 
-def load_or_build_index(nodes=None):
+def load_or_build_index(nodes=None) -> VectorStoreIndex:
     """
     Load an existing VectorStoreIndex if present,
     or build a new one using provided nodes if storage is empty.
@@ -59,7 +60,10 @@ def load_or_build_index(nodes=None):
     llama_settings.Settings.embed_model = embed_model
     storage_context = get_or_create_storage_context()
     try:
-        return load_index_from_storage(storage_context=storage_context)
+        return cast(
+            "VectorStoreIndex",
+            load_index_from_storage(storage_context=storage_context),
+        )
     except ValueError as e:
         logger.warning("Failed to load index from storage: %s", e)
         if not nodes:
@@ -81,7 +85,7 @@ def remove_document_docstore_nodes(document: Document, index: VectorStoreIndex):
     existing_nodes = [
         node.node_id
         for node in index.docstore.get_nodes(all_node_ids)
-        if node.metadata.get("document_id") == str(document.id)
+        if node.metadata.get("document_id") == str(document.pk)
     ]
     for node_id in existing_nodes:
         # Delete from docstore, FAISS IndexFlatL2 are append-only
@@ -152,7 +156,7 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
         }
 
         for document in tqdm(documents, disable=progress_bar_disable):
-            doc_id = str(document.id)
+            doc_id = str(document.pk)
             document_modified = document.modified.isoformat()
 
             if doc_id in existing_nodes:
@@ -269,10 +273,10 @@ def query_similar_documents(
     )
     results = retriever.retrieve(query_text)
 
-    document_ids = [
+    top_document_ids = [
         int(node.metadata["document_id"])
         for node in results
         if "document_id" in node.metadata
     ]
 
-    return list(Document.objects.filter(pk__in=document_ids))
+    return list(Document.objects.filter(pk__in=top_document_ids))

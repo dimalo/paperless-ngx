@@ -44,7 +44,7 @@ def mock_embed_model():
 
 class FakeEmbedding(BaseEmbedding):
     # TODO: maybe a better way to do this?
-    def _aget_query_embedding(self, query: str) -> list[float]:
+    async def _aget_query_embedding(self, query: str) -> list[float]:
         return [0.1] * self.get_query_embedding_dim()
 
     def _get_query_embedding(self, query: str) -> list[float]:

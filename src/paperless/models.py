@@ -516,7 +516,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         validators=[MinValueValidator(0.0)],
     )
 
-    class Meta:
+    class Meta(AbstractSingletonModel.Meta):
         verbose_name = _("paperless application settings")
 
     def __str__(self) -> str:  # pragma: no cover

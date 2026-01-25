@@ -3600,7 +3600,6 @@ dependencies = [
     { name = "llama-index-llms-ollama", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "llama-index-llms-openai", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "llama-index-vector-stores-faiss", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "llama-index-vector-stores-postgres", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "nltk", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "ocrmypdf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "openai", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3640,6 +3639,7 @@ mariadb = [
     { name = "mysqlclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 postgres = [
+    { name = "llama-index-vector-stores-postgres", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "psycopg", extra = ["c", "pool"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "psycopg-c", version = "3.2.12", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version != '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version != '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin'" },
     { name = "psycopg-c", version = "3.2.12", source = { url = "https://github.com/paperless-ngx/builder/releases/download/psycopg-bookworm-3.2.12/psycopg_c-3.2.12-cp312-cp312-linux_aarch64.whl" }, marker = "python_full_version == '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux'" },
@@ -3759,7 +3759,7 @@ requires-dist = [
     { name = "llama-index-llms-ollama", specifier = ">=0.9.1" },
     { name = "llama-index-llms-openai", specifier = ">=0.6.13" },
     { name = "llama-index-vector-stores-faiss", specifier = ">=0.5.2" },
-    { name = "llama-index-vector-stores-postgres", specifier = ">=0.4.0" },
+    { name = "llama-index-vector-stores-postgres", marker = "extra == 'postgres'", specifier = ">=0.4" },
     { name = "mysqlclient", marker = "extra == 'mariadb'", specifier = "~=2.2.7" },
     { name = "nltk", specifier = "~=3.9.1" },
     { name = "ocrmypdf", specifier = "~=16.13.0" },

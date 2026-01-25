@@ -6,7 +6,6 @@ from llama_index.core import StorageContext
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.vector_stores.faiss import FaissVectorStore
-from llama_index.vector_stores.postgres import PGVectorStore
 
 from paperless.config import AIConfig
 
@@ -86,6 +85,8 @@ class VectorStoreFactory:
 
         password = urllib.parse.quote_plus(str(password))
         connection_string = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+
+        from llama_index.vector_stores.postgres import PGVectorStore
 
         from paperless_ai.embedding import get_embedding_dim
 

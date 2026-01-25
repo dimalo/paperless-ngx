@@ -27,24 +27,21 @@ class LiteLLMEmbedding(BaseEmbedding):
     specifically Ollama for this implementation.
     """
 
-    model_name: str
-    api_base: str | None
-    api_key: str | None
-    timeout: float
+    model_name: str = ""
+    api_base: str | None = None
+    api_key: str | None = None
+    timeout: int = 60
 
     def __init__(
         self,
         model_name: str,
         api_base: str | None = None,
         api_key: str | None = None,
-        timeout: float = 60.0,
+        timeout: int = 60,
         **kwargs: Any,
     ) -> None:
         super().__init__(
             model_name=model_name,
-            api_base=api_base,
-            api_key=api_key,
-            timeout=timeout,
             **kwargs,
         )
         self.model_name = model_name
@@ -113,7 +110,7 @@ def get_embedding_model() -> BaseEmbedding:
                 model_name=config.llm_embedding_model or "nomic-embed-text",
                 api_base=config.llm_embedding_endpoint or config.llm_endpoint,
                 api_key=config.llm_embedding_api_key or config.llm_api_key,
-                timeout=float(config.llm_timeout or 60),
+                timeout=int(config.llm_timeout or 60),
             )
         case _:
             raise ValueError(
@@ -150,11 +147,10 @@ def get_embedding_dim() -> int:
         return meta["dim"]
 
     # Try to fetch from Ollama API if applicable
-    if config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA and (
-        config.llm_embedding_endpoint or config.llm_endpoint
-    ):
+    endpoint_url = config.llm_embedding_endpoint or config.llm_endpoint
+    if config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA and endpoint_url:
         try:
-            endpoint = (config.llm_embedding_endpoint or config.llm_endpoint).rstrip(
+            endpoint = endpoint_url.rstrip(
                 "/",
             )
             if not endpoint.startswith("http"):
@@ -200,7 +196,7 @@ def build_llm_index_text(doc: Document) -> str:
         f"Notes: {','.join([str(c.note) for c in Note.objects.filter(document=doc)])}",
     ]
 
-    for instance in doc.custom_fields.all():
+    for instance in doc.custom_fields.all():  # type: ignore
         lines.append(f"Custom Field - {instance.field.name}: {instance}")
 
     lines.append("\nContent:\n")

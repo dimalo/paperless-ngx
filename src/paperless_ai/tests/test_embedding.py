@@ -1,4 +1,5 @@
 import json
+from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -108,9 +109,95 @@ def test_get_embedding_model_ollama(mock_ai_config):
             model_name="nomic-embed-text",
             api_base="http://ollama:11434",
             api_key="test_key",
-            timeout=30.0,
+            timeout=30,
         )
         assert model == MockLiteLLMEmbedding.return_value
+
+
+@patch("paperless_ai.embedding.litellm")
+def test_litellm_embedding_methods(mock_litellm):
+    from paperless_ai.embedding import LiteLLMEmbedding
+
+    embedding = LiteLLMEmbedding(
+        model_name="test-model",
+        api_base="http://test.local",
+        api_key="key",
+        timeout=10,
+    )
+
+    # Test _get_model_with_prefix
+    assert embedding._get_model_with_prefix() == "ollama/test-model"
+    embedding.model_name = "custom/model"
+    assert embedding._get_model_with_prefix() == "custom/model"
+    embedding.model_name = "test-model"  # Reset
+
+    # Setup mock response
+    mock_response = MagicMock()
+    mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
+    mock_litellm.embedding.return_value = mock_response
+
+    # Test _get_text_embedding
+    res = embedding._get_text_embedding("hello")
+    assert res == [0.1, 0.2, 0.3]
+    mock_litellm.embedding.assert_called_with(
+        model="ollama/test-model",
+        input=["hello"],
+        api_base="http://test.local",
+        api_key="key",
+        timeout=10,
+    )
+
+    # Test _get_query_embedding (delegates to _get_text_embedding)
+    res_query = embedding._get_query_embedding("query")
+    assert res_query == [0.1, 0.2, 0.3]
+
+    # Test _get_text_embeddings
+    mock_response.data = [
+        {"embedding": [0.1, 0.1]},
+        {"embedding": [0.2, 0.2]},
+    ]
+    res_list = embedding._get_text_embeddings(["a", "b"])
+    assert res_list == [[0.1, 0.1], [0.2, 0.2]]
+    mock_litellm.embedding.assert_called_with(
+        model="ollama/test-model",
+        input=["a", "b"],
+        api_base="http://test.local",
+        api_key="key",
+        timeout=10,
+    )
+
+
+@patch("paperless_ai.embedding.litellm")
+def test_litellm_embedding_async_methods(mock_litellm):
+    import asyncio
+
+    from paperless_ai.embedding import LiteLLMEmbedding
+
+    embedding = LiteLLMEmbedding(
+        model_name="test-model",
+    )
+
+    # Setup mock response
+    mock_response = MagicMock()
+    mock_response.data = [{"embedding": [0.9, 0.8]}]
+
+    # Configure aembedding to be an AsyncMock
+    mock_litellm.aembedding = AsyncMock(return_value=mock_response)
+
+    # Test _aget_text_embedding
+    res = asyncio.run(embedding._aget_text_embedding("hello"))
+    assert res == [0.9, 0.8]
+    mock_litellm.aembedding.assert_called_with(
+        model="ollama/test-model",
+        input=["hello"],
+        api_base=None,
+        api_key=None,
+        timeout=60,
+    )
+
+    # Test _aget_query_embedding
+    res_query = asyncio.run(embedding._aget_query_embedding("query"))
+    assert res_query == [0.9, 0.8]
 
 
 def test_get_embedding_model_invalid_backend(mock_ai_config):

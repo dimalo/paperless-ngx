@@ -1,3 +1,4 @@
+import importlib.util
 from unittest.mock import patch
 
 import pytest
@@ -63,6 +64,10 @@ class TestVectorStoreFactory:
         VectorStoreFactory.get_storage_context(rebuild=True)
         mock_faiss_context.assert_called_once_with(rebuild=True)
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("llama_index.vector_stores.postgres") is None,
+        reason="pgvector not installed",
+    )
     @patch("llama_index.vector_stores.postgres.PGVectorStore")
     @patch("paperless_ai.embedding.get_embedding_dim")
     @patch("paperless_ai.vector_store.AIConfig")
@@ -87,6 +92,10 @@ class TestVectorStoreFactory:
             embed_dim=1536,
         )
 
+    @pytest.mark.skipif(
+        importlib.util.find_spec("llama_index.vector_stores.postgres") is None,
+        reason="pgvector not installed",
+    )
     @patch("llama_index.vector_stores.postgres.PGVectorStore")
     @patch("paperless_ai.embedding.get_embedding_dim")
     @patch("paperless_ai.vector_store.AIConfig")
