@@ -11,6 +11,15 @@ from documents.models import Document
 from paperless_ai import indexing
 
 
+@pytest.fixture(autouse=True)
+def clear_vector_store_cache():
+    from paperless_ai.vector_store import VectorStoreFactory
+
+    VectorStoreFactory._backend_cache = None
+    VectorStoreFactory._storage_context_cache = None
+    yield
+
+
 @pytest.fixture
 def temp_llm_index_dir(tmp_path):
     original_dir = indexing.settings.LLM_INDEX_DIR
@@ -181,8 +190,12 @@ def test_get_or_create_storage_context_raises_exception(
     temp_llm_index_dir,
     mock_embed_model,
 ):
-    with pytest.raises(Exception):
-        indexing.get_or_create_storage_context(rebuild=False)
+    with patch(
+        "paperless_ai.vector_store.VectorStoreFactory.get_vector_store_backend",
+        side_effect=Exception("Error"),
+    ):
+        with pytest.raises(Exception):
+            indexing.get_or_create_storage_context(rebuild=False)
 
 
 @override_settings(
@@ -214,7 +227,8 @@ def test_load_or_build_index_builds_when_nodes_given(
         mock_index_cls.assert_called_once()
 
 
-def test_load_or_build_index_raises_exception_when_no_nodes(
+@pytest.mark.django_db
+def test_load_or_build_index_robustness_when_loading_fails(
     temp_llm_index_dir,
     mock_embed_model,
 ):
@@ -227,9 +241,14 @@ def test_load_or_build_index_raises_exception_when_no_nodes(
             "paperless_ai.indexing.get_or_create_storage_context",
             return_value=MagicMock(),
         ),
+        patch(
+            "paperless_ai.indexing.VectorStoreIndex",
+            return_value=MagicMock(),
+        ) as mock_index_cls,
     ):
-        with pytest.raises(Exception):
-            indexing.load_or_build_index()
+        # This should NOT raise ValueError because it falls back to creating a new index
+        indexing.load_or_build_index()
+        mock_index_cls.assert_called_once()
 
 
 @pytest.mark.django_db

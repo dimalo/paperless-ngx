@@ -10,6 +10,9 @@ from llama_index.core import load_index_from_storage
 from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.schema import BaseNode
 from llama_index.core.text_splitter import TokenTextSplitter
+from llama_index.core.vector_stores import FilterCondition
+from llama_index.core.vector_stores import MetadataFilter
+from llama_index.core.vector_stores import MetadataFilters
 from tqdm import tqdm
 
 from documents.models import Document
@@ -47,6 +50,7 @@ def build_document_node(document: Document) -> list[BaseNode]:
         "modified": document.modified.isoformat(),  # type: ignore
     }
     doc = LlamaDocument(text=text, metadata=metadata)
+    doc.id_ = str(document.pk)
     parser = SimpleNodeParser()
     return parser.get_nodes_from_documents([doc])
 
@@ -59,6 +63,13 @@ def load_or_build_index(nodes=None) -> VectorStoreIndex:
     embed_model = get_embedding_model()
     llama_settings.Settings.embed_model = embed_model
     storage_context = get_or_create_storage_context()
+
+    if VectorStoreFactory.get_vector_store_backend() == "postgres":
+        return VectorStoreIndex.from_vector_store(
+            vector_store=storage_context.vector_store,
+            embed_model=embed_model,
+        )
+
     try:
         return cast(
             "VectorStoreIndex",
@@ -74,27 +85,77 @@ def load_or_build_index(nodes=None) -> VectorStoreIndex:
         )
 
 
-def remove_document_docstore_nodes(document: Document, index: VectorStoreIndex):
+def remove_document_from_index(document: Document, index: VectorStoreIndex):
     """
-    Removes existing documents from docstore for a given document from the index.
-    This is necessary because FAISS IndexFlatL2 is append-only.
+    Removes a document from the index, handling backend specifics.
     """
-    all_node_ids = list(index.docstore.docs.keys())
-    existing_nodes = [
-        node.node_id
-        for node in index.docstore.get_nodes(all_node_ids)
-        if node.metadata.get("document_id") == str(document.pk)
-    ]
-    for node_id in existing_nodes:
-        # Delete from docstore, FAISS IndexFlatL2 are append-only
-        index.docstore.delete_document(node_id)
+    if VectorStoreFactory.get_vector_store_backend() == "postgres":
+        try:
+            # Delete by ref_doc_id (which we set to document.pk)
+            # delete_from_docstore=False because we don't use document store for Postgres
+            index.delete_ref_doc(str(document.pk), delete_from_docstore=False)
+        except Exception as e:
+            logger.debug("Failed to delete document %s from index: %s", document.pk, e)
+    else:
+        # FAISS / Local Logic
+        # FAISS index is append-only, but we remove from docstore to "hide" it
+        all_node_ids = list(index.docstore.docs.keys())
+        existing_nodes = [
+            node.node_id
+            for node in index.docstore.get_nodes(all_node_ids)
+            if node.metadata.get("document_id") == str(document.pk)
+        ]
+        for node_id in existing_nodes:
+            index.docstore.delete_document(node_id)
 
 
 def vector_store_file_exists():
     """
     Check if the vector store file exists in the LLM index directory.
+    For Postgres, returns True to ensure we use the incremental update path.
     """
+    if VectorStoreFactory.get_vector_store_backend() == "postgres":
+        return True
     return Path(settings.LLM_INDEX_DIR / "default__vector_store.json").exists()
+
+
+def get_existing_docs_map(index: VectorStoreIndex) -> dict[str, str]:
+    """
+    Returns a map of document_id -> modified_iso for documents currently in the index.
+    """
+    existing_map = {}
+    if VectorStoreFactory.get_vector_store_backend() == "postgres":
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            # Try to find the table name ('data_paperless_vectors' or 'paperless_vectors')
+            cursor.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema='public' AND table_name IN ('paperless_vectors', 'data_paperless_vectors')",
+            )
+            rows = cursor.fetchall()
+            if rows:
+                table_name = rows[0][0]
+                try:
+                    cursor.execute(
+                        f"SELECT cmetadata->>'document_id', cmetadata->>'modified' FROM {table_name}",
+                    )
+                    for row in cursor.fetchall():
+                        if row[0]:
+                            existing_map[row[0]] = row[1]
+                except Exception as e:
+                    logger.warning(
+                        "Could not query existing documents from Postgres: %s",
+                        e,
+                    )
+    else:
+        all_node_ids = list(index.docstore.docs.keys())
+        for node in index.docstore.get_nodes(all_node_ids):
+            doc_id = node.metadata.get("document_id")
+            if doc_id:
+                existing_map[doc_id] = node.metadata.get("modified")
+
+    return existing_map
 
 
 def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
@@ -138,41 +199,38 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
             )
         else:
             # Postgres/Vector store - just build the index shell and insert
-            index = VectorStoreIndex.from_documents(
-                [],  # start empty
-                storage_context=storage_context,
+            index = VectorStoreIndex.from_vector_store(
+                vector_store=storage_context.vector_store,
                 embed_model=embed_model,
             )
+            # For rebuild, we should ideally clear the store first?
+            # But let's assume 'rebuild' flag handling for Postgres might be user responsibility or via API
+            # Ideally we would truncate table here?
+            # For now, we process as upsert/insert.
             for document in tqdm(documents, disable=progress_bar_disable):
+                # Ensure we delete old if exists (rebuild scenario implies clear, but maybe table has data)
+                remove_document_from_index(document, index)
                 index.insert_nodes(build_document_node(document))
 
         msg = "LLM index rebuilt successfully."
     else:
         # Update existing index
         index = load_or_build_index()
-        all_node_ids = list(index.docstore.docs.keys())
-        existing_nodes = {
-            node.metadata.get("document_id"): node
-            for node in index.docstore.get_nodes(all_node_ids)
-        }
+        existing_doc_map = get_existing_docs_map(index)
 
         for document in tqdm(documents, disable=progress_bar_disable):
             doc_id = str(document.pk)
             document_modified = document.modified.isoformat()
 
-            if doc_id in existing_nodes:
-                node = existing_nodes[doc_id]
-                node_modified = node.metadata.get("modified")
-
-                if node_modified == document_modified:
+            if doc_id in existing_doc_map:
+                if existing_doc_map[doc_id] == document_modified:
                     continue
 
-                # Again, delete from docstore, FAISS IndexFlatL2 are append-only
-                index.docstore.delete_document(node.node_id)
-                nodes.extend(build_document_node(document))
-            else:
-                # New document, add it
-                nodes.extend(build_document_node(document))
+                # Remove existing (older version)
+                remove_document_from_index(document, index)
+
+            # Add new version (or new doc)
+            nodes.extend(build_document_node(document))
 
         if nodes:
             msg = "LLM index updated successfully."
@@ -200,7 +258,7 @@ def llm_index_add_or_update_document(document: Document):
 
     index = load_or_build_index(nodes=new_nodes)
 
-    remove_document_docstore_nodes(document, index)
+    remove_document_from_index(document, index)
 
     index.insert_nodes(new_nodes)
 
@@ -214,7 +272,7 @@ def llm_index_remove_document(document: Document):
     """
     index = load_or_build_index()
 
-    remove_document_docstore_nodes(document, index)
+    remove_document_from_index(document, index)
 
     if VectorStoreFactory.get_vector_store_backend() == "faiss":
         index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
@@ -250,23 +308,22 @@ def query_similar_documents(
     """
     index = load_or_build_index()
 
-    # constrain only the node(s) that match the document IDs, if given
-    doc_node_ids = (
-        [
-            node.node_id
-            for node in index.docstore.docs.values()
-            if node.metadata.get("document_id") in document_ids
-        ]
-        if document_ids
-        else None
-    )
+    filters = None
+    if document_ids:
+        filters = MetadataFilters(
+            filters=[
+                MetadataFilter(key="document_id", value=str(doc_id))
+                for doc_id in document_ids
+            ],
+            condition=FilterCondition.OR,
+        )
 
     from llama_index.core.retrievers import VectorIndexRetriever
 
     retriever = VectorIndexRetriever(
         index=index,
         similarity_top_k=top_k,
-        doc_ids=doc_node_ids,
+        filters=filters,
     )
 
     query_text = truncate_content(

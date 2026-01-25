@@ -335,6 +335,7 @@ INSTALLED_APPS = [
     "paperless_text.apps.PaperlessTextConfig",
     "paperless_mail.apps.PaperlessMailConfig",
     "paperless_remote.apps.PaperlessRemoteParserConfig",
+    "paperless_ai.apps.PaperlessAIConfig",
     "django.contrib.admin",
     "rest_framework",
     "rest_framework.authtoken",
@@ -900,9 +901,21 @@ LOGGING = {
     "loggers": {
         "paperless": {"handlers": ["file_paperless"], "level": "DEBUG"},
         "paperless_mail": {"handlers": ["file_mail"], "level": "DEBUG"},
-        "paperless_ai": {"handlers": ["file_paperless"], "level": "INFO"},
-        "paperless_ai.chat": {"handlers": ["file_paperless"], "level": "WARNING"},
-        "paperless_ai.vector_store": {"handlers": ["file_paperless"], "level": "INFO"},
+        "paperless_ai": {
+            "handlers": ["file_paperless"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "paperless_ai.chat": {
+            "handlers": ["file_paperless"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "paperless_ai.vector_store": {
+            "handlers": ["file_paperless"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "llama_index": {"handlers": ["file_paperless"], "level": "WARNING"},
         "ocrmypdf": {"handlers": ["file_paperless"], "level": "INFO"},
         "celery": {"handlers": ["file_celery"], "level": "DEBUG"},

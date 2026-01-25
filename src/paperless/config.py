@@ -24,6 +24,16 @@ class BaseConfig:
         except (ProgrammingError, AttributeError):
             return ApplicationConfiguration()
 
+    def _normalize_endpoint(self, endpoint: str | None) -> str | None:
+        if not endpoint:
+            return None
+        endpoint = endpoint.strip()
+        if not endpoint:
+            return None
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+        return endpoint.rstrip("/")
+
 
 @dataclasses.dataclass
 class OutputTypeConfig(BaseConfig):
@@ -210,11 +220,11 @@ class AIConfig(BaseConfig):
     """
 
     ai_enabled: bool = dataclasses.field(init=False)
-    llm_embedding_backend: str | None = dataclasses.field(init=False)
+    llm_embedding_backend: str = dataclasses.field(init=False)
     llm_embedding_endpoint: str | None = dataclasses.field(init=False)
     llm_embedding_model: str | None = dataclasses.field(init=False)
     llm_embedding_api_key: str | None = dataclasses.field(init=False)
-    llm_backend: str | None = dataclasses.field(init=False)
+    llm_backend: str = dataclasses.field(init=False)
     llm_model: str | None = dataclasses.field(init=False)
     llm_api_key: str | None = dataclasses.field(init=False)
     llm_endpoint: str | None = dataclasses.field(init=False)
@@ -242,11 +252,11 @@ class AIConfig(BaseConfig):
         app_config = self._get_config_instance()
 
         self.ai_enabled = getattr(app_config, "ai_enabled", None) or settings.AI_ENABLED
-        self.llm_embedding_backend = getattr(
-            app_config,
-            "llm_embedding_backend",
-            None,
-        ) or getattr(settings, "LLM_EMBEDDING_BACKEND", None)
+        self.llm_embedding_backend = (
+            getattr(app_config, "llm_embedding_backend", None)
+            or getattr(settings, "LLM_EMBEDDING_BACKEND", None)
+            or "ollama"
+        )
         self.llm_embedding_model = getattr(
             app_config,
             "llm_embedding_model",
@@ -263,10 +273,10 @@ class AIConfig(BaseConfig):
             None,
         ) or getattr(settings, "LLM_EMBEDDING_API_KEY", None)
 
-        self.llm_backend = getattr(app_config, "llm_backend", None) or getattr(
-            settings,
-            "LLM_BACKEND",
-            None,
+        self.llm_backend = (
+            getattr(app_config, "llm_backend", None)
+            or getattr(settings, "LLM_BACKEND", None)
+            or "ollama"
         )
         self.llm_model = getattr(app_config, "llm_model", None) or getattr(
             settings,
@@ -283,6 +293,48 @@ class AIConfig(BaseConfig):
             "LLM_ENDPOINT",
             None,
         )
+
+        # Fallback to OLLAMA_ENDPOINT if using ollama backend and no endpoint specified
+        if self.llm_backend == "ollama" and not self.llm_endpoint:
+            self.llm_endpoint = getattr(app_config, "ollama_endpoint", None) or getattr(
+                settings,
+                "OLLAMA_ENDPOINT",
+                None,
+            )
+
+        # Normalize endpoints
+        self.llm_endpoint = self._normalize_endpoint(self.llm_endpoint)
+        self.llm_embedding_endpoint = self._normalize_endpoint(
+            self.llm_embedding_endpoint,
+        )
+
+        # Fallback embedding endpoint if using same backend and it's missing
+        if (
+            self.llm_embedding_backend == self.llm_backend
+            and not self.llm_embedding_endpoint
+        ):
+            self.llm_embedding_endpoint = self.llm_endpoint
+
+        # Ensure embedding endpoint is still normalized after fallback
+        self.llm_embedding_endpoint = self._normalize_endpoint(
+            self.llm_embedding_endpoint,
+        )
+
+        # Set environment variables for LiteLLM and others to avoid localhost probing
+        import os
+
+        if self.llm_endpoint:
+            os.environ["OLLAMA_API_BASE"] = self.llm_endpoint
+            # Also set litellm global defaults if possible
+            try:
+                import litellm
+
+                litellm.api_base = self.llm_endpoint
+                if self.llm_api_key:
+                    litellm.api_key = self.llm_api_key
+            except ImportError:
+                pass
+
         self.llm_timeout = getattr(app_config, "llm_timeout", None) or getattr(
             settings,
             "LLM_TIMEOUT",
@@ -420,7 +472,7 @@ class DoclingConfig(BaseConfig):
 
     force_ocr: bool = dataclasses.field(init=False)
     language: str = dataclasses.field(init=False)
-    endpoint: str = dataclasses.field(init=False)
+    endpoint: str | None = dataclasses.field(init=False)
     timeout: int = dataclasses.field(init=False)
     sharpen: bool = dataclasses.field(init=False)
     custom_alignment: bool = dataclasses.field(init=False)
@@ -438,7 +490,9 @@ class DoclingConfig(BaseConfig):
             else settings.DOCLING_FORCE_OCR
         )
         self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
-        self.endpoint = app_config.docling_endpoint or settings.DOCLING_ENDPOINT
+        self.endpoint = self._normalize_endpoint(
+            app_config.docling_endpoint or settings.DOCLING_ENDPOINT,
+        )
         self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
         self.sharpen = (
             app_config.ocr_sharpen
@@ -470,7 +524,7 @@ class OllamaConfig(BaseConfig):
     Specific settings for the Ollama OCR parser
     """
 
-    endpoint: str = dataclasses.field(init=False)
+    endpoint: str | None = dataclasses.field(init=False)
     model: str = dataclasses.field(init=False)
     prompt_template: str = dataclasses.field(init=False)
     timeout: int = dataclasses.field(init=False)
@@ -485,7 +539,14 @@ class OllamaConfig(BaseConfig):
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
 
-        self.endpoint = app_config.ollama_endpoint or settings.OLLAMA_ENDPOINT
+        self.endpoint = self._normalize_endpoint(
+            app_config.ollama_endpoint or settings.OLLAMA_ENDPOINT,
+        )
+        if self.endpoint:
+            import os
+
+            os.environ["OLLAMA_API_BASE"] = self.endpoint
+
         self.model = app_config.ollama_model or settings.OLLAMA_MODEL
         self.prompt_template = (
             app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE

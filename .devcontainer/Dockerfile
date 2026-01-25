@@ -68,7 +68,8 @@ ARG RUNTIME_PACKAGES="\
   libzbar0 \
   poppler-utils \
   htop \
-  sudo"
+  sudo \
+  libgl1"
 
 # Install basic runtime packages.
 # These change very infrequently

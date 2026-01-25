@@ -73,54 +73,61 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
         """
         Test successful parsing of a PDF.
         """
-        parser = OllamaDocumentParser(uuid.uuid4())
+        with self.settings(OLLAMA_MODEL="generic-vlm"):
+            parser = OllamaDocumentParser(uuid.uuid4())
 
-        with (
-            mock.patch("litellm.completion") as mock_completion,
-            mock.patch.object(
-                parser,
-                "_convert_pdf_pages_to_images",
-                return_value=[Path("dummy.png")],
-            ) as mock_convert,
-        ):
-            mock_response = mock.Mock()
-            mock_response.choices = [
-                mock.Mock(message=mock.Mock(content="Page 1 text.")),
-            ]
-            mock_completion.return_value = mock_response
+            with (
+                mock.patch("litellm.completion") as mock_completion,
+                mock.patch.object(
+                    parser,
+                    "_convert_pdf_pages_to_images",
+                    return_value=[Path("dummy.png")],
+                ) as mock_convert,
+            ):
+                mock_response = mock.Mock()
+                mock_response.choices = [
+                    mock.Mock(message=mock.Mock(content="Page 1 text.")),
+                ]
+                mock_completion.return_value = mock_response
 
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                pdf_path = Path(tmp.name)
-                tmp.write(b"dummy pdf data")
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    pdf_path = Path(tmp.name)
+                    tmp.write(b"dummy pdf data")
 
-            try:
-                # Mock _prepare_message and _call_ollama_api_batch
-                with (
-                    mock.patch.object(
-                        parser,
-                        "_prepare_message",
-                        return_value=([{"role": "user"}], 800, 600),
-                    ),
-                    mock.patch.object(
-                        parser,
-                        "_call_ollama_api_batch",
-                        return_value=["Page 1 text."],
-                    ),
-                    mock.patch.object(
-                        Path,
-                        "exists",
-                        return_value=True,
-                    ),  # Mock existence of dummy.png
-                ):
-                    parser.parse(pdf_path, "application/pdf")
+                try:
+                    # Mock _prepare_message and _call_ollama_api_batch
+                    with (
+                        mock.patch.object(
+                            parser,
+                            "_prepare_message",
+                            return_value=([{"role": "user"}], 800, 600),
+                        ),
+                        mock.patch.object(
+                            parser,
+                            "_call_ollama_api_batch",
+                            return_value=["Page 1 text."],
+                        ),
+                        mock.patch.object(
+                            Path,
+                            "exists",
+                            return_value=True,
+                        ),  # Mock existence of dummy.png
+                    ):
+                        parser.parse(pdf_path, "application/pdf")
 
-                self.assertEqual(parser.text, "Page 1 text.")
-                # Since we didn't mock generate_pdf_from_markdown or result in overlay,
-                # and fallback for PDF is None (to avoid deleting original), it should be None.
-                self.assertIsNone(parser.archive_path)
-                mock_convert.assert_called_once_with(pdf_path)
-            finally:
-                pdf_path.unlink(missing_ok=True)
+                    self.assertEqual(parser.text, "Page 1 text.")
+                    # Since we didn't mock generate_pdf_from_markdown or result in overlay,
+                    # and fallback for PDF is None (to avoid deleting original), it should be None.
+                    self.assertIsNone(parser.archive_path)
+                    mock_convert.assert_called_once_with(
+                        pdf_path,
+                        scale_to=None,
+                        scale_to_x=None,
+                        scale_to_y=None,
+                        dpi=150,
+                    )
+                finally:
+                    pdf_path.unlink(missing_ok=True)
 
     def test_parse_api_failure(self):
         """

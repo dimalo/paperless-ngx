@@ -18,25 +18,34 @@ class VectorStoreFactory:
     based on the application settings and environment.
     """
 
+    _backend_cache: str | None = None
+    _storage_context_cache: StorageContext | None = None
+
     @staticmethod
     def get_vector_store_backend() -> str:
         """
         Determines which vector store backend to use.
         """
+        if VectorStoreFactory._backend_cache:
+            return VectorStoreFactory._backend_cache
+
         config = AIConfig()
         backend = config.vector_store_backend
-        logger.info("Determining vector store backend (configured: %s)", backend)
+        logger.debug("Determining vector store backend (configured: %s)", backend)
 
         if backend == "auto":
             if VectorStoreFactory._is_pgvector_available():
-                logger.info(
+                logger.debug(
                     "Auto-detected pgvector availability, using postgres backend",
                 )
-                return "postgres"
-            logger.info("pgvector not available, falling back to faiss backend")
-            return "faiss"
+                VectorStoreFactory._backend_cache = "postgres"
+            else:
+                logger.debug("pgvector not available, falling back to faiss backend")
+                VectorStoreFactory._backend_cache = "faiss"
+        else:
+            VectorStoreFactory._backend_cache = backend
 
-        return backend
+        return VectorStoreFactory._backend_cache
 
     @staticmethod
     def _is_pgvector_available() -> bool:
@@ -91,13 +100,21 @@ class VectorStoreFactory:
         """
         Returns the appropriate StorageContext for the selected backend.
         """
+        if not rebuild and VectorStoreFactory._storage_context_cache:
+            return VectorStoreFactory._storage_context_cache
+
         backend = VectorStoreFactory.get_vector_store_backend()
         logger.info("Initializing StorageContext for backend: %s", backend)
 
         if backend == "postgres":
-            return VectorStoreFactory._get_postgres_storage_context()
+            context = VectorStoreFactory._get_postgres_storage_context()
         else:
-            return VectorStoreFactory._get_faiss_storage_context(rebuild=rebuild)
+            context = VectorStoreFactory._get_faiss_storage_context(rebuild=rebuild)
+
+        if not rebuild:
+            VectorStoreFactory._storage_context_cache = context
+
+        return context
 
     @staticmethod
     def _get_postgres_storage_context() -> StorageContext:
@@ -118,6 +135,9 @@ class VectorStoreFactory:
 
         password = urllib.parse.quote_plus(str(password))
         connection_string = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
+        async_connection_string = (
+            f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db_name}"
+        )
 
         from llama_index.vector_stores.postgres import PGVectorStore
 
@@ -133,6 +153,7 @@ class VectorStoreFactory:
         )
         vector_store = PGVectorStore(
             connection_string=connection_string,
+            async_connection_string=async_connection_string,
             table_name="paperless_vectors",
             embed_dim=embed_dim,
         )

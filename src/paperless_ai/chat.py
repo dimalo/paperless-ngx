@@ -4,10 +4,14 @@ import sys
 from llama_index.core import VectorStoreIndex
 from llama_index.core.prompts import PromptTemplate
 from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.vector_stores import FilterCondition
+from llama_index.core.vector_stores import MetadataFilter
+from llama_index.core.vector_stores import MetadataFilters
 
 from documents.models import Document
 from paperless_ai.client import AIClient
 from paperless_ai.indexing import load_or_build_index
+from paperless_ai.vector_store import VectorStoreFactory
 
 logger = logging.getLogger("paperless_ai.chat")
 
@@ -29,24 +33,41 @@ def stream_chat_with_documents(query_str: str, documents: list[Document]):
     client = AIClient()
     index = load_or_build_index()
 
-    doc_ids = [str(doc.pk) for doc in documents]
+    # Check backend to decide strategy
+    if VectorStoreFactory.get_vector_store_backend() == "postgres":
+        # Postgres: filtering is done via vector store MetadataFilters
+        # We cannot rely on index.docstore being populated locally
+        doc_ids = [str(doc.pk) for doc in documents]
+        filters = MetadataFilters(
+            filters=[
+                MetadataFilter(key="document_id", value=doc_id) for doc_id in doc_ids
+            ],
+            condition=FilterCondition.OR,
+        )
 
-    # Filter only the node(s) that match the document IDs
-    nodes = [
-        node
-        for node in index.docstore.docs.values()
-        if node.metadata.get("document_id") in doc_ids
-    ]
+        retriever = index.as_retriever(
+            similarity_top_k=3 if len(documents) == 1 else 5,
+            filters=filters,
+        )
+    else:
+        # FAISS/Local: docstore is available, build a temporary local index
+        # (FAISS filtering is limited, so sub-indexing is safer/standard here)
+        doc_ids = [str(doc.pk) for doc in documents]
+        nodes = [
+            node
+            for node in index.docstore.docs.values()
+            if node.metadata.get("document_id") in doc_ids
+        ]
 
-    if len(nodes) == 0:
-        logger.warning("No nodes found for the given documents.")
-        yield "Sorry, I couldn't find any content to answer your question."
-        return
+        if len(nodes) == 0:
+            logger.warning("No nodes found for the given documents.")
+            yield "Sorry, I couldn't find any content to answer your question."
+            return
 
-    local_index = VectorStoreIndex(nodes=nodes)
-    retriever = local_index.as_retriever(
-        similarity_top_k=3 if len(documents) == 1 else 5,
-    )
+        local_index = VectorStoreIndex(nodes=nodes)
+        retriever = local_index.as_retriever(
+            similarity_top_k=3 if len(documents) == 1 else 5,
+        )
 
     if len(documents) == 1:
         # Just one doc — provide full content

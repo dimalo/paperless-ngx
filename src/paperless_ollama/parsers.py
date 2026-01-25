@@ -134,8 +134,8 @@ class OllamaDocumentParser(ImageDocumentParser):
                     model=f"ollama/{self.settings.model}",
                     messages=messages,
                     stream=False,
-                    api_base=self.settings.endpoint,
-                    timeout=self.settings.timeout,
+                    api_base=self.settings.endpoint or None,
+                    timeout=self.settings.timeout or 120,
                 )
                 return response.choices[0].message.content
             except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
@@ -161,8 +161,8 @@ class OllamaDocumentParser(ImageDocumentParser):
                 responses = litellm.batch_completion(
                     model=f"ollama/{self.settings.model}",
                     messages=messages_list,
-                    api_base=self.settings.endpoint,
-                    timeout=self.settings.timeout,
+                    api_base=self.settings.endpoint or None,
+                    timeout=self.settings.timeout or 120,
                 )
                 # litellm.batch_completion can return a list where some items are exceptions
                 # instead of Response objects. We need to check for this.
@@ -225,6 +225,12 @@ class OllamaDocumentParser(ImageDocumentParser):
         try:
             with Image.open(image_path) as img:
                 original_width, original_height = img.size
+
+                # If the image is already at the target size (e.g. from pdftoppm -scale-to),
+                # we just need to ensure it's boxed into 1280x1280
+                if original_width == target_size and original_height == target_size:
+                    return image_path, original_width, original_height
+
                 self.log.info(
                     f"Resizing image from {original_width}x{original_height} to {target_size}x{target_size} for DeepSeek-OCR",
                 )
@@ -267,12 +273,19 @@ class OllamaDocumentParser(ImageDocumentParser):
         )
 
         image_base64 = self._encode_image_to_base64(resized_path)
-        prompt = (
-            self.settings.prompt_template
-            or "OCR this image. Extract all text content and provide bounding boxes. "
-            "For each text block, use the format: <|ref|>exact text content</|ref|><|det|>[[x1,y1,x2,y2]]</|det|>. "
-            "Example: <|ref|>The quick brown fox</|ref|><|det|>[[100,100,200,200]]</|det|>"
-        )
+        prompt = self.settings.prompt_template
+        if not prompt:
+            if "deepseek-ocr" in self.settings.model.lower():
+                # Recommended DeepSeek-OCR prompt for document processing
+                prompt = "<|grounding|>Convert the document to markdown."
+            elif "qwen" in self.settings.model.lower():
+                prompt = (
+                    "OCR the image and extract all text content exactly as it appears. "
+                    "Maintain the original layout and formatting where possible. "
+                    "If the image contains multiple columns or tables, preserve the logical reading order."
+                )
+            else:
+                prompt = "OCR this image. Extract all text content."
 
         messages = [
             {
@@ -311,8 +324,8 @@ class OllamaDocumentParser(ImageDocumentParser):
                     model=f"ollama/{self.settings.model}",
                     messages=messages,
                     stream=False,
-                    api_base=self.settings.endpoint,
-                    timeout=self.settings.timeout,
+                    api_base=self.settings.endpoint or None,
+                    timeout=self.settings.timeout or 120,
                 )
                 return response.choices[0].message.content
             except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
@@ -506,24 +519,35 @@ class OllamaDocumentParser(ImageDocumentParser):
         c.save()
         return output_path
 
-    def _convert_pdf_pages_to_images(self, pdf_path: Path) -> list[Path]:
+    def _convert_pdf_pages_to_images(
+        self,
+        pdf_path: Path,
+        scale_to: int | None = None,
+        scale_to_x: int | None = None,
+        scale_to_y: int | None = None,
+        dpi: int = 150,
+    ) -> list[Path]:
         """
         Convert PDF pages to individual images using pdftoppm.
+        Defaults to 150 DPI for better VLM performance/memory balance.
         """
 
         image_paths = []
         output_pattern = str(Path(self.tempdir) / "page")
-        run_subprocess(
-            [
-                "pdftoppm",
-                "-png",
-                "-r",
-                "300",  # DPI
-                str(pdf_path),
-                str(output_pattern),
-            ],
-            logger=self.log,  # type: ignore
-        )
+
+        args = ["pdftoppm", "-png"]
+        if scale_to_x and scale_to_y:
+            args.extend(
+                ["-scale-to-x", str(scale_to_x), "-scale-to-y", str(scale_to_y)],
+            )
+        elif scale_to:
+            args.extend(["-scale-to", str(scale_to)])
+        else:
+            args.extend(["-r", str(dpi)])
+
+        args.extend([str(pdf_path), str(output_pattern)])
+
+        run_subprocess(args, logger=self.log)  # type: ignore
 
         # Collect the generated image files
         for png_file in Path(self.tempdir).glob("page-*.png"):
@@ -568,8 +592,49 @@ class OllamaDocumentParser(ImageDocumentParser):
         try:
             self.page_results = []
             if mime_type == "application/pdf":
+                # Determine scaling or DPI based on model
+                scale_to = None
+                scale_to_x = None
+                scale_to_y = None
+                dpi = 150  # Default to 150 DPI for VLMs
+
+                model_lower = self.settings.model.lower()
+                if "deepseek-ocr" in model_lower:
+                    scale_to = 1280
+                elif "qwen" in model_lower:
+                    # Qwen models prefer dimensions to be multiples of 28
+                    # We target roughly 120 DPI (~1M pixels)
+                    try:
+                        with pikepdf.Pdf.open(document_path) as pdf:
+                            # Assume first page for calculating scaled dimensions
+                            # (usually documents are uniform size, or we use first page as proxy)
+                            page = pdf.pages[0]
+                            # TrimBox/MediaBox are in points (1/72 inch)
+                            box = page.MediaBox
+                            w_pts = float(box[2]) - float(box[0])
+                            h_pts = float(box[3]) - float(box[1])
+
+                            dpi = 120
+                            target_w = (w_pts / 72.0) * dpi
+                            target_h = (h_pts / 72.0) * dpi
+
+                            # Round to nearest multiple of 28
+                            scale_to_x = int(round(target_w / 28.0) * 28)
+                            scale_to_y = int(round(target_h / 28.0) * 28)
+                    except Exception as e:
+                        self.log.warning(
+                            f"Could not calculate 28-pixel alignment for Qwen: {e}",
+                        )
+                        dpi = 120
+
                 # Convert PDF pages to images
-                image_paths = self._convert_pdf_pages_to_images(document_path)
+                image_paths = self._convert_pdf_pages_to_images(
+                    document_path,
+                    scale_to=scale_to,
+                    scale_to_x=scale_to_x,
+                    scale_to_y=scale_to_y,
+                    dpi=dpi,
+                )
                 total_pages = len(image_paths)
 
                 # Prepare all page messages
