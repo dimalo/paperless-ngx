@@ -93,23 +93,31 @@ class LiteLLMEmbedding(BaseEmbedding):
 
 def get_embedding_model() -> BaseEmbedding:
     config = AIConfig()
-
+    logger.info(
+        "Loading embedding model (backend: %s, model: %s)",
+        config.llm_embedding_backend,
+        config.llm_embedding_model or "default",
+    )
     match config.llm_embedding_backend:
         case LLMEmbeddingBackend.OPENAI:
             return OpenAIEmbedding(
-                model=config.llm_embedding_model or "text-embedding-3-small",
-                api_key=config.llm_api_key,
+                model=str(config.llm_embedding_model or "text-embedding-3-small"),
+                api_key=str(config.llm_api_key or ""),
             )
         case LLMEmbeddingBackend.HUGGINGFACE:
             return HuggingFaceEmbedding(
-                model_name=config.llm_embedding_model
-                or "sentence-transformers/all-MiniLM-L6-v2",
+                model_name=str(
+                    config.llm_embedding_model
+                    or "sentence-transformers/all-MiniLM-L6-v2",
+                ),
             )
         case LLMEmbeddingBackend.OLLAMA:
             return LiteLLMEmbedding(
-                model_name=config.llm_embedding_model or "nomic-embed-text",
-                api_base=config.llm_embedding_endpoint or config.llm_endpoint,
-                api_key=config.llm_embedding_api_key or config.llm_api_key,
+                model_name=str(config.llm_embedding_model or "nomic-embed-text"),
+                api_base=str(
+                    config.llm_embedding_endpoint or config.llm_endpoint or "",
+                ),
+                api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
                 timeout=int(config.llm_timeout or 60),
             )
         case _:
@@ -175,6 +183,7 @@ def get_embedding_dim() -> int:
     test_embed = embedding_model.get_text_embedding("test")
     dim = len(test_embed)
 
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
     with meta_path.open("w") as f:
         json.dump({"embedding_model": model, "dim": dim}, f)
 
@@ -188,7 +197,7 @@ def build_llm_index_text(doc: Document) -> str:
         f"Created: {doc.created}",
         f"Added: {doc.added}",
         f"Modified: {doc.modified}",
-        f"Tags: {', '.join(tag.name for tag in doc.tags.all())}",
+        f"Tags: {', '.join(tag.name for tag in doc.tags.all())}",  # type: ignore
         f"Document Type: {doc.document_type.name if doc.document_type else ''}",
         f"Correspondent: {doc.correspondent.name if doc.correspondent else ''}",
         f"Storage Path: {doc.storage_path.name if doc.storage_path else ''}",
@@ -200,6 +209,6 @@ def build_llm_index_text(doc: Document) -> str:
         lines.append(f"Custom Field - {instance.field.name}: {instance}")
 
     lines.append("\nContent:\n")
-    lines.append(doc.content or "")
+    lines.append(str(doc.content or ""))
 
     return "\n".join(lines)

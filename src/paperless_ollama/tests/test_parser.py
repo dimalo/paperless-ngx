@@ -17,7 +17,11 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
     @pytest.mark.django_db
     def test_consumer_declaration(self):
         """Test that the parser is only registered when enabled."""
+        from paperless.models import ApplicationConfiguration
         from paperless_ollama.signals import ollama_consumer_declaration
+
+        # Ensure DB config doesn't override settings
+        ApplicationConfiguration.objects.all().delete()
 
         with self.settings(OCR_ENGINE="tesseract"):
             self.assertIsNone(ollama_consumer_declaration(None))

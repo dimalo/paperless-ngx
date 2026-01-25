@@ -20,7 +20,7 @@ import {
   of,
   takeUntil,
 } from 'rxjs'
-import { debounceTime, switchMap } from 'rxjs/operators'
+import { catchError, debounceTime, switchMap } from 'rxjs/operators'
 import {
   ConfigCategory,
   ConfigOption,
@@ -154,46 +154,41 @@ export class ConfigComponent
       .pipe(
         takeUntil(this.unsubscribeNotifier),
         debounceTime(500),
-        switchMap(() => {
+        switchMap((): Observable<{ id: string; name: string }[]> => {
           const engine = this.configForm.get('ocr_engine')?.value
           const endpoint = this.configForm.get('ollama_endpoint')?.value
           if (engine === 'ollama' && endpoint) {
-            return this.ollamaService.getModels(endpoint)
+            return this.ollamaService.getModels(endpoint).pipe(
+              catchError((err) => {
+                this.toastService.showError(
+                  $localize`Failed to fetch models`,
+                  err
+                )
+                return of([])
+              })
+            )
           }
-          return []
+          return of([])
         })
       )
       .subscribe({
-        next: (models) => {
+        next: (models: { id: string; name: string }[]) => {
           const modelOption = PaperlessConfigOptions.find(
             (o) => o.key === 'ollama_model'
           )
           if (modelOption) {
             modelOption.choices = models
-            // Only show toast if we actually returned models (meaning fetch happened)
-            // To avoid spamming on every keypress if returning empty array above.
-            // Wait, 'models' will be empty array if condition false OR if fetch returned empty.
-            // We can distinguish by context or just check length.
-            // Ideally we only want to show toast if we *attempted* a fetch.
-            // But here we are just returning empty array if no fetch.
-            // A better pattern: filter BEFORE switchMap?
-            // If I filter, I won't reset the choices if engine changes away from ollama?
-            // Actually, if engine changes to Tesseract, we probably don't care about ollama_model choices.
             if (models.length > 0) {
               console.info(`Found ${models.length} Ollama models`)
             } else if (
               this.configForm.get('ocr_engine')?.value === 'ollama' &&
               this.configForm.get('ollama_endpoint')?.value
             ) {
-              // If we really tried and got 0.
               this.toastService.showWarning(
                 $localize`No models found at this endpoint`
               )
             }
           }
-        },
-        error: (err) => {
-          this.toastService.showError($localize`Failed to fetch models`, err)
         },
       })
 
@@ -207,7 +202,7 @@ export class ConfigComponent
       .pipe(
         takeUntil(this.unsubscribeNotifier),
         debounceTime(500),
-        switchMap(() => {
+        switchMap((): Observable<{ id: string; name: string }[]> => {
           const backend = this.configForm.get('llm_embedding_backend')?.value
           const llmEmbedEndpoint = this.configForm.get(
             'llm_embedding_endpoint'
@@ -217,14 +212,19 @@ export class ConfigComponent
           if (backend === 'ollama') {
             const endpoint = llmEmbedEndpoint || llmEndpoint || ocrEndpoint
             if (endpoint) {
-              return this.ollamaService.getModels(endpoint)
+              return this.ollamaService.getModels(endpoint).pipe(
+                catchError((err) => {
+                  console.warn('Failed to fetch embedding models', err)
+                  return of([])
+                })
+              )
             }
           }
           return of([])
         })
       )
       .subscribe({
-        next: (models) => {
+        next: (models: { id: string; name: string }[]) => {
           const modelOption = PaperlessConfigOptions.find(
             (o) => o.key === 'llm_embedding_model'
           )
@@ -233,41 +233,6 @@ export class ConfigComponent
           }
         },
       })
-
-    // Trigger initial fetch if endpoint exists
-    const initialOcrEndpoint = this.configForm.get('ollama_endpoint')?.value
-    if (initialOcrEndpoint) {
-      this.ollamaService.getModels(initialOcrEndpoint).subscribe((models) => {
-        const modelOption = PaperlessConfigOptions.find(
-          (o) => o.key === 'ollama_model'
-        )
-        if (modelOption) {
-          modelOption.choices = models
-        }
-      })
-    }
-
-    const initialLlmEmbedEndpoint = this.configForm.get(
-      'llm_embedding_endpoint'
-    )?.value
-    const initialLlmEndpoint = this.configForm.get('llm_endpoint')?.value
-    const llmEmbeddingBackend = this.configForm.get(
-      'llm_embedding_backend'
-    )?.value
-    if (llmEmbeddingBackend === 'ollama') {
-      const endpoint =
-        initialLlmEmbedEndpoint || initialLlmEndpoint || initialOcrEndpoint
-      if (endpoint) {
-        this.ollamaService.getModels(endpoint).subscribe((models) => {
-          const modelOption = PaperlessConfigOptions.find(
-            (o) => o.key === 'llm_embedding_model'
-          )
-          if (modelOption) {
-            modelOption.choices = models
-          }
-        })
-      }
-    }
   }
 
   public testLLMConnection() {
@@ -337,9 +302,60 @@ export class ConfigComponent
 
       this.isDirty$ = dirtyCheck(this.configForm, this.store.asObservable())
     }
-    this.configForm.patchValue(config)
-
     this.initialConfig = config
+
+    // Trigger initial fetch if endpoint exists
+    const ocrEndpoint = this.configForm.get('ollama_endpoint')?.value
+    if (ocrEndpoint) {
+      this.ollamaService
+        .getModels(ocrEndpoint)
+        .pipe(first())
+        .subscribe((models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'ollama_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+          }
+        })
+    }
+
+    if (this.configForm.get('llm_embedding_backend')?.value === 'ollama') {
+      const embedEndpoint =
+        this.configForm.get('llm_embedding_endpoint')?.value ||
+        this.configForm.get('llm_endpoint')?.value ||
+        ocrEndpoint
+      if (embedEndpoint) {
+        this.ollamaService
+          .getModels(embedEndpoint)
+          .pipe(first())
+          .subscribe((models) => {
+            const modelOption = PaperlessConfigOptions.find(
+              (o) => o.key === 'llm_embedding_model'
+            )
+            if (modelOption) {
+              modelOption.choices = models
+            }
+          })
+      }
+    }
+
+    // Also fetch LLM models if connection settings are already present
+    const llmEndpoint = this.configForm.get('llm_endpoint')?.value
+    const llmBackend = this.configForm.get('llm_backend')?.value
+    if (llmEndpoint && llmBackend) {
+      this.llmService
+        .getModels(llmEndpoint, llmBackend)
+        .pipe(first())
+        .subscribe((models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'llm_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+          }
+        })
+    }
   }
 
   getDocsUrl(key: string) {

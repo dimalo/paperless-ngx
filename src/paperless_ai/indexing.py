@@ -35,16 +35,16 @@ def build_document_node(document: Document) -> list[BaseNode]:
     metadata = {
         "document_id": str(document.pk),
         "title": document.title,
-        "tags": [t.name for t in document.tags.all()],
+        "tags": [t.name for t in document.tags.all()],  # type: ignore
         "correspondent": document.correspondent.name
         if document.correspondent
         else None,
         "document_type": document.document_type.name
         if document.document_type
         else None,
-        "created": document.created.isoformat() if document.created else None,
-        "added": document.added.isoformat() if document.added else None,
-        "modified": document.modified.isoformat(),
+        "created": document.created.isoformat() if document.created else None,  # type: ignore
+        "added": document.added.isoformat() if document.added else None,  # type: ignore
+        "modified": document.modified.isoformat(),  # type: ignore
     }
     doc = LlamaDocument(text=text, metadata=metadata)
     parser = SimpleNodeParser()
@@ -66,11 +66,9 @@ def load_or_build_index(nodes=None) -> VectorStoreIndex:
         )
     except ValueError as e:
         logger.warning("Failed to load index from storage: %s", e)
-        if not nodes:
-            logger.info("No nodes provided for index creation.")
-            raise
+        # Create a new index if loading failed (e.g. storage empty)
         return VectorStoreIndex(
-            nodes=nodes,
+            nodes=nodes or [],
             storage_context=storage_context,
             embed_model=embed_model,
         )
@@ -103,6 +101,9 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
     """
     Rebuild or update the LLM index.
     """
+    # Ensure backend-specific setup (like pgvector extension) is done
+    VectorStoreFactory.setup_vector_store()
+
     nodes = []
 
     documents = Document.objects.all()
@@ -269,7 +270,7 @@ def query_similar_documents(
     )
 
     query_text = truncate_content(
-        (document.title or "") + "\n" + (document.content or ""),
+        str(document.title or "") + "\n" + str(document.content or ""),
     )
     results = retriever.retrieve(query_text)
 

@@ -50,6 +50,7 @@ dependencies = [
   "gotenberg-client~=0.13.1",
   "httpx-oauth~=0.16",
   "imap-tools~=1.11.0",
+  "img2pdf~=0.6.1",
   "inotifyrecursive~=0.3",
   "jinja2~=3.1.5",
   "langdetect~=1.0.9",
@@ -67,6 +68,9 @@ dependencies = [
   "opencv-python>=4.13.0.90",
   "pathvalidate~=3.3.1",
   "pdf2image~=1.17.0",
+  "pikepdf>=10.0.1",
+  "pillow>=11.1",
+  "pydantic>=2.10",
   "python-dateutil~=2.9.0",
   "python-dotenv~=1.2.1",
   "python-gnupg~=0.5.4",
@@ -76,6 +80,8 @@ dependencies = [
   "rapidfuzz~=3.14.0",
   "redis[hiredis]~=5.2.1",
   "regex>=2025.9.18",
+  "reportlab~=4.3.1",
+  "requests~=2.32.3",
   "scikit-learn~=1.7.0",
   "sentence-transformers>=4.1",
   "setproctitle~=1.3.4",
@@ -88,6 +94,9 @@ dependencies = [
   "zxing-cpp~=2.3.0",
 ]
 
+optional-dependencies.all = [
+  "paperless-ngx[docling,mariadb,postgres,webserver]",
+]
 optional-dependencies.docling = [
   "docling",
   "opencv-python",
@@ -157,6 +166,7 @@ typing = [
   "types-python-dateutil",
   "types-pytz",
   "types-redis",
+  "types-reportlab",
   "types-setuptools",
   "types-tqdm",
 ]

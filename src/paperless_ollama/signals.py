@@ -8,6 +8,7 @@ def ollama_consumer_declaration(sender, **kwargs):
     from django.conf import settings
 
     # Check DB setting first, then env var
+    from django.db.utils import OperationalError
     from django.db.utils import ProgrammingError
 
     from paperless.models import ApplicationConfiguration
@@ -17,7 +18,7 @@ def ollama_consumer_declaration(sender, **kwargs):
         ocr_engine = (
             config.ocr_engine if config and config.ocr_engine else settings.OCR_ENGINE
         )
-    except ProgrammingError:
+    except (ProgrammingError, OperationalError):
         ocr_engine = settings.OCR_ENGINE
 
     if ocr_engine != "ollama":

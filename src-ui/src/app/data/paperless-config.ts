@@ -66,6 +66,12 @@ export const LLMBackendConfig = {
   OLLAMA: 'ollama',
 }
 
+export const VectorStoreBackendConfig = {
+  AUTO: 'auto',
+  FAISS: 'faiss',
+  POSTGRES: 'postgres',
+}
+
 export interface ConfigOption {
   key: string
   title: string
@@ -590,6 +596,61 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'AUDIT_LOG_LEVEL',
     category: ConfigCategory.AI,
   },
+  // Vector Store Configuration
+  {
+    key: 'ai_vector_header',
+    title: $localize`Vector Store Configuration`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_backend',
+    title: $localize`Vector Store Backend`,
+    type: ConfigOptionType.Select,
+    choices: [
+      { id: 'auto', name: `Automatic (suggested)` },
+      { id: 'faiss', name: `FAISS (local files)` },
+      { id: 'postgres', name: `Postgres (PGVector)` },
+    ],
+    config_key: 'PAPERLESS_AI_VECTOR_STORE',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_name',
+    title: $localize`Vector Database Name`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_DB_NAME',
+    category: ConfigCategory.AI,
+    note: $localize`Defaults to <main-db-name>-vector`,
+  },
+  {
+    key: 'vector_store_host',
+    title: $localize`Vector Database Host`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_HOST',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_port',
+    title: $localize`Vector Database Port`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_VECTOR_PORT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_user',
+    title: $localize`Vector Database User`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_USER',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_pass',
+    title: $localize`Vector Database Password`,
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_AI_VECTOR_PASS',
+    category: ConfigCategory.AI,
+  },
 ]
 
 export interface PaperlessConfig extends ObjectWithId {
@@ -655,4 +716,10 @@ export interface PaperlessConfig extends ObjectWithId {
   rate_limit_window: number
   graceful_degradation: boolean
   force_ai_update: boolean
+  vector_store_backend: string
+  vector_store_name: string
+  vector_store_host: string
+  vector_store_port: number
+  vector_store_user: string
+  vector_store_pass: string
 }

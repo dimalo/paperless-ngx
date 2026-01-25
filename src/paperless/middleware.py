@@ -9,7 +9,8 @@ class ApiVersionMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        if request.user.is_authenticated:
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated:
             versions = settings.REST_FRAMEWORK["ALLOWED_VERSIONS"]
             response["X-Api-Version"] = versions[len(versions) - 1]
             response["X-Version"] = version.__full_version_str__

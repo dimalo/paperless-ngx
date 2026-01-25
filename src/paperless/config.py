@@ -212,6 +212,7 @@ class AIConfig(BaseConfig):
     ai_enabled: bool = dataclasses.field(init=False)
     llm_embedding_backend: str | None = dataclasses.field(init=False)
     llm_embedding_endpoint: str | None = dataclasses.field(init=False)
+    llm_embedding_model: str | None = dataclasses.field(init=False)
     llm_embedding_api_key: str | None = dataclasses.field(init=False)
     llm_backend: str | None = dataclasses.field(init=False)
     llm_model: str | None = dataclasses.field(init=False)
@@ -240,17 +241,17 @@ class AIConfig(BaseConfig):
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
 
-        self.ai_enabled = app_config.ai_enabled or settings.AI_ENABLED
-        self.llm_embedding_backend = (
-            app_config.llm_embedding_backend
-            if app_config.llm_embedding_backend
-            else getattr(settings, "LLM_EMBEDDING_BACKEND", None)
-        )
-        self.llm_embedding_model = (
-            app_config.llm_embedding_model
-            if app_config.llm_embedding_model is not None
-            else getattr(settings, "LLM_EMBEDDING_MODEL", None)
-        )
+        self.ai_enabled = getattr(app_config, "ai_enabled", None) or settings.AI_ENABLED
+        self.llm_embedding_backend = getattr(
+            app_config,
+            "llm_embedding_backend",
+            None,
+        ) or getattr(settings, "LLM_EMBEDDING_BACKEND", None)
+        self.llm_embedding_model = getattr(
+            app_config,
+            "llm_embedding_model",
+            None,
+        ) or getattr(settings, "LLM_EMBEDDING_MODEL", None)
         self.llm_embedding_endpoint = getattr(
             app_config,
             "llm_embedding_endpoint",
@@ -262,30 +263,30 @@ class AIConfig(BaseConfig):
             None,
         ) or getattr(settings, "LLM_EMBEDDING_API_KEY", None)
 
-        self.llm_backend = (
-            app_config.llm_backend
-            if app_config.llm_backend is not None
-            else getattr(settings, "LLM_BACKEND", None)
+        self.llm_backend = getattr(app_config, "llm_backend", None) or getattr(
+            settings,
+            "LLM_BACKEND",
+            None,
         )
-        self.llm_model = (
-            app_config.llm_model
-            if app_config.llm_model is not None
-            else getattr(settings, "LLM_MODEL", None)
+        self.llm_model = getattr(app_config, "llm_model", None) or getattr(
+            settings,
+            "LLM_MODEL",
+            None,
         )
-        self.llm_api_key = (
-            app_config.llm_api_key
-            if app_config.llm_api_key is not None
-            else getattr(settings, "LLM_API_KEY", None)
+        self.llm_api_key = getattr(app_config, "llm_api_key", None) or getattr(
+            settings,
+            "LLM_API_KEY",
+            None,
         )
-        self.llm_endpoint = (
-            app_config.llm_endpoint
-            if app_config.llm_endpoint is not None
-            else getattr(settings, "LLM_ENDPOINT", None)
+        self.llm_endpoint = getattr(app_config, "llm_endpoint", None) or getattr(
+            settings,
+            "LLM_ENDPOINT",
+            None,
         )
-        self.llm_timeout = (
-            app_config.llm_timeout
-            if app_config.llm_timeout is not None
-            else getattr(settings, "LLM_TIMEOUT", None)
+        self.llm_timeout = getattr(app_config, "llm_timeout", None) or getattr(
+            settings,
+            "LLM_TIMEOUT",
+            None,
         )
 
         # Auto-enhancement settings
@@ -363,36 +364,36 @@ class AIConfig(BaseConfig):
         )
 
         # Vector store settings
-        self.vector_store_backend = (
-            app_config.vector_store_backend
-            if app_config.vector_store_backend
-            else getattr(settings, "PAPERLESS_AI_VECTOR_STORE", "auto")
-        )
-        self.vector_store_name = (
-            app_config.vector_store_name
-            if app_config.vector_store_name
-            else getattr(settings, "PAPERLESS_AI_VECTOR_DB_NAME", None)
-        )
-        self.vector_store_host = (
-            app_config.vector_store_host
-            if app_config.vector_store_host
-            else getattr(settings, "PAPERLESS_AI_VECTOR_HOST", None)
-        )
-        self.vector_store_port = (
-            app_config.vector_store_port
-            if app_config.vector_store_port
-            else getattr(settings, "PAPERLESS_AI_VECTOR_PORT", None)
-        )
-        self.vector_store_user = (
-            app_config.vector_store_user
-            if app_config.vector_store_user
-            else getattr(settings, "PAPERLESS_AI_VECTOR_USER", None)
-        )
-        self.vector_store_pass = (
-            app_config.vector_store_pass
-            if app_config.vector_store_pass
-            else getattr(settings, "PAPERLESS_AI_VECTOR_PASS", None)
-        )
+        self.vector_store_backend = getattr(
+            app_config,
+            "vector_store_backend",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_STORE", "auto")
+        self.vector_store_name = getattr(
+            app_config,
+            "vector_store_name",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_DB_NAME", None)
+        self.vector_store_host = getattr(
+            app_config,
+            "vector_store_host",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_HOST", None)
+        self.vector_store_port = getattr(
+            app_config,
+            "vector_store_port",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_PORT", None)
+        self.vector_store_user = getattr(
+            app_config,
+            "vector_store_user",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_USER", None)
+        self.vector_store_pass = getattr(
+            app_config,
+            "vector_store_pass",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_VECTOR_PASS", None)
 
         # Validate thresholds
         if not (0.0 <= self.confidence_threshold <= 1.0):

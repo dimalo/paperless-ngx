@@ -1,10 +1,12 @@
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from paperless_ollama.parsers import OllamaDocumentParser
 
 
+@pytest.mark.django_db
 def test_bbox_parsing():
     parser = OllamaDocumentParser(logging_group="test")
     test_text = "<|ref|>DeepSeek OCR<|/ref|><|det|>[[100, 100, 200, 200]]<|/det|>\nSome other text."
@@ -20,6 +22,7 @@ def test_bbox_parsing():
     assert "DeepSeek OCR" in filtered
 
 
+@pytest.mark.django_db
 def test_pdf_overlay():
     parser = OllamaDocumentParser(logging_group="test")
     # Create a dummy image

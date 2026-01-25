@@ -67,12 +67,11 @@ class OllamaDocumentParser(ImageDocumentParser):
                     for label, box in ocr_data:
                         # Box is [x1, y1, x2, y2] in 0-999 normalized coordinates
                         # Scale to original dimensions, then to current image size
-                        x1, y1, x2, y2 = box
-                        # First scale from 0-999 to original dimensions
-                        x1_orig = (x1 * orig_w) / 1000
-                        y1_orig = (y1 * orig_h) / 1000
-                        x2_orig = (x2 * orig_w) / 1000
-                        y2_orig = (y2 * orig_h) / 1000
+                        x1_orig, y1_orig, x2_orig, y2_orig = self._unscale_box(
+                            box,
+                            orig_w,
+                            orig_h,
+                        )
 
                         # Then scale to current image dimensions (if different)
                         x1_img = (x1_orig * w) / orig_w
@@ -211,37 +210,126 @@ class OllamaDocumentParser(ImageDocumentParser):
         image_base64 = self._encode_image_to_base64(resized_path)
         prompt = (
             self.settings.prompt_template
-            or "Extract text as Markdown with bounding boxes using <|ref|>text</|ref|><|det|>[[x1,y1,x2,y2]]</|det|> format."
+            or "OCR this image. Extract all text content and provide bounding boxes. "
+            "For each text block, use the format: <|ref|>exact text content</|ref|><|det|>[[x1,y1,x2,y2]]</|det|>. "
+            "Example: <|ref|>The quick brown fox</|ref|><|det|>[[100,100,200,200]]</|det|>"
         )
         self.log.info(f"Sending request to Ollama (model: {self.settings.model})...")
         result = self._call_ollama_api(image_base64, prompt)
         self.log.info("Ollama request finished.")
         return result, original_width, original_height
 
+    def _unscale_box(self, box: list[int], orig_w: int, orig_h: int) -> list[float]:
+        """
+        Convert normalized 0-999 coordinates from DeepSeek-OCR back to original dimensions.
+        Accounts for the 1024x1024 padding and centering.
+        """
+        x1, y1, x2, y2 = box
+
+        if "deepseek-ocr" not in self.settings.model.lower():
+            return [
+                (x1 * orig_w) / 1000,
+                (y1 * orig_h) / 1000,
+                (x2 * orig_w) / 1000,
+                (y2 * orig_h) / 1000,
+            ]
+
+        target = 1024
+        # Calculate how PIL.Image.thumbnail and our padding logic works
+        if orig_w <= target and orig_h <= target:
+            new_w, new_h = orig_w, orig_h
+        else:
+            scale = min(target / orig_w, target / orig_h)
+            new_w = round(orig_w * scale)
+            new_h = round(orig_h * scale)
+
+        offset_x = (target - new_w) // 2
+        offset_y = (target - new_h) // 2
+
+        def unscale_x(x_norm):
+            x_pixel = (x_norm * target) / 1000
+            return (x_pixel - offset_x) * orig_w / new_w
+
+        def unscale_y(y_norm):
+            y_pixel = (y_norm * target) / 1000
+            return (y_pixel - offset_y) * orig_h / new_h
+
+        return [
+            unscale_x(x1),
+            unscale_y(y1),
+            unscale_x(x2),
+            unscale_y(y2),
+        ]
+
     def _parse_ocr_coordinates(self, raw_text: str) -> list[tuple[str, list[int]]]:
         """
         Parse DeepSeek-OCR tags to get labels and bounding boxes.
-        Example: <|ref|>text<|/ref|><|det|>[[42, 433, 113, 522]]<|/det|>
+        Attempts to extract actual text content even if tags use generic labels.
         """
         results = []
-        # Support both [[x,y,x,y]] and [x,y,x,y] just in case
+        # Regex to capture content inside tags
         pattern = re.compile(
-            r"<\|ref\|>(.*?)<\|/ref\|><\|det\|>\[?\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]\]?<\|/det\|>",
+            r"<\|ref\|>(.*?)<\|/ref\|>\s*<\|det\|>\[?\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]\]?<\|/det\|>",
         )
+
+        generic_labels = {
+            "text",
+            "subheading",
+            "heading",
+            "title",
+            "paragraph",
+            "caption",
+            "label",
+        }
+
         for match in pattern.finditer(raw_text):
-            label = match.group(1)
+            label = match.group(1).strip()
             box = [int(match.group(i)) for i in range(2, 6)]
+
+            # If the label is generic, try to find the actual text AFTER this tag
+            if label.lower() in generic_labels:
+                end_pos = match.end()
+                # Look ahead up to 200 characters for following text that isn't another tag
+                following_text = raw_text[end_pos : end_pos + 200]
+                # Match first non-tag block of text
+                # We look for the first sequence of characters that doesn't start with <
+                text_match = re.search(r"^\s*([^<>\n\r]+)", following_text)
+                if text_match:
+                    found_text = text_match.group(1).strip()
+                    if len(found_text) > 2:  # Only use if it looks substantial
+                        label = found_text
+
             results.append((label, box))
         return results
 
     def _filter_ocr_text(self, text: str) -> str:
         """
         Remove special tags from the extracted text while keeping the content.
+        Tries to handle cases where text is duplicated outside and inside tags.
         """
-        # Remove <|det|>... tags entirely
+        # Remove <|det|> tags entirely
         text = re.sub(r"<\|det\|>.*?<\|/det\|>", "", text, flags=re.DOTALL)
-        # Remove <|ref|>...<|/ref|> tags AND their content
-        text = re.sub(r"<\|ref\|>.*?<\|/ref\|>", "", text, flags=re.DOTALL)
+
+        # For <|ref|> tags:
+        # If the content is generic (text, subheading), we remove it assuming it was a label
+        # Otherwise we keep the content but remove the tags
+        def clean_ref(match):
+            content = match.group(1).strip()
+            if content.lower() in {
+                "text",
+                "subheading",
+                "heading",
+                "title",
+                "paragraph",
+            }:
+                return ""
+            return f" {content} "
+
+        # Escape the pipes in the regex
+        text = re.sub(r"<\|ref\|>(.*?)<\|/ref\|>", clean_ref, text, flags=re.DOTALL)
+
+        # Collapse multiple spaces but preserve newlines
+        text = re.sub(r"[ \t]+", " ", text)
         return text.strip()
 
     def _generate_overlay_pdf(
@@ -275,12 +363,17 @@ class OllamaDocumentParser(ImageDocumentParser):
         # reportlab uses 0,0 as bottom-left
         for text, box in ocr_data:
             # Normalized coordinates 0-999
-            x1, y1, _, y2 = box
             # Scale to original/target dimensions
-            px1 = (x1 * coord_w) / 1000
+            x1_orig, y1_orig, x2_orig, y2_orig = self._unscale_box(
+                box,
+                coord_w,
+                coord_h,
+            )
+
             # Flip Y for reportlab (top-down 0-999 to bottom-up pixels)
-            py1 = coord_h - (y2 * coord_h) / 1000
-            py2 = coord_h - (y1 * coord_h) / 1000
+            px1 = x1_orig
+            py1 = coord_h - y2_orig
+            py2 = coord_h - y1_orig
 
             font_size = max(py2 - py1, 1)
             c.setFont("Helvetica", font_size)
@@ -295,8 +388,7 @@ class OllamaDocumentParser(ImageDocumentParser):
                 c.setLineWidth(1)
                 # width = scaled x2 - scaled x1
                 # height = py2 - py1 (since py2 is top Y in cartesian)
-                px2 = (box[2] * coord_w) / 1000
-                rect_width = px2 - px1
+                rect_width = x2_orig - x1_orig
                 rect_height = py2 - py1
                 c.rect(px1, py1, rect_width, rect_height, stroke=1, fill=0)
 
@@ -317,10 +409,10 @@ class OllamaDocumentParser(ImageDocumentParser):
                 "-png",
                 "-r",
                 "300",  # DPI
-                pdf_path,
-                output_pattern,
+                str(pdf_path),
+                str(output_pattern),
             ],
-            logger=self.log,
+            logger=self.log,  # type: ignore
         )
 
         # Collect the generated image files

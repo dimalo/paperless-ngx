@@ -625,6 +625,15 @@ wheels = [
 ]
 
 [[package]]
+name = "chardet"
+version = "5.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/0d/f7b6ab21ec75897ed80c17d79b15951a719226b9fababf1e40ea74d69079/chardet-5.2.0.tar.gz", hash = "sha256:1b3b6ff479a8c414bc3fa2c0852995695c4a026dcd6d0633b2dd092ca39c1cf7", size = 2069618, upload-time = "2023-08-01T19:23:02.662Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/6f/f5fbc992a329ee4e0f288c1fe0e2ad9485ed064cac731ed2fe47dcc38cbf/chardet-5.2.0-py3-none-any.whl", hash = "sha256:e1cf59446890a00105fe7b7912492ea04b6e6f06d4b742b2c788469e34c82970", size = 199385, upload-time = "2023-08-01T19:23:00.661Z" },
+]
+
+[[package]]
 name = "charset-normalizer"
 version = "3.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3590,6 +3599,7 @@ dependencies = [
     { name = "gotenberg-client", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "httpx-oauth", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "imap-tools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "img2pdf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "inotifyrecursive", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "jinja2", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "langdetect", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3606,6 +3616,9 @@ dependencies = [
     { name = "opencv-python", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pathvalidate", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pdf2image", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pikepdf", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pillow", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pydantic", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "python-dateutil", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "python-dotenv", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "python-gnupg", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3615,6 +3628,8 @@ dependencies = [
     { name = "rapidfuzz", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "redis", extra = ["hiredis"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "regex", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "reportlab", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "scikit-learn", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "sentence-transformers", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "setproctitle", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3631,6 +3646,18 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "docling", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "granian", extra = ["uvloop"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "llama-index-vector-stores-postgres", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "mysqlclient", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "opencv-python", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "psycopg", extra = ["c", "pool"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "psycopg-c", version = "3.2.12", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version != '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux') or (python_full_version != '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or sys_platform == 'darwin'" },
+    { name = "psycopg-c", version = "3.2.12", source = { url = "https://github.com/paperless-ngx/builder/releases/download/psycopg-bookworm-3.2.12/psycopg_c-3.2.12-cp312-cp312-linux_aarch64.whl" }, marker = "python_full_version == '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "psycopg-c", version = "3.2.12", source = { url = "https://github.com/paperless-ngx/builder/releases/download/psycopg-bookworm-3.2.12/psycopg_c-3.2.12-cp312-cp312-linux_x86_64.whl" }, marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "psycopg-pool", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
 docling = [
     { name = "docling", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "opencv-python", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -3709,6 +3736,7 @@ typing = [
     { name = "types-python-dateutil", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-pytz", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-redis", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "types-reportlab", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-setuptools", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "types-tqdm", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
@@ -3749,6 +3777,7 @@ requires-dist = [
     { name = "granian", extras = ["uvloop"], marker = "extra == 'webserver'", specifier = "~=2.5.1" },
     { name = "httpx-oauth", specifier = "~=0.16" },
     { name = "imap-tools", specifier = "~=1.11.0" },
+    { name = "img2pdf", specifier = "~=0.6.1" },
     { name = "inotifyrecursive", specifier = "~=0.3" },
     { name = "jinja2", specifier = "~=3.1.5" },
     { name = "langdetect", specifier = "~=1.0.9" },
@@ -3766,13 +3795,17 @@ requires-dist = [
     { name = "openai", specifier = ">=1.76" },
     { name = "opencv-python", specifier = ">=4.13.0.90" },
     { name = "opencv-python", marker = "extra == 'docling'" },
+    { name = "paperless-ngx", extras = ["docling", "mariadb", "postgres", "webserver"], marker = "extra == 'all'" },
     { name = "pathvalidate", specifier = "~=3.3.1" },
     { name = "pdf2image", specifier = "~=1.17.0" },
+    { name = "pikepdf", specifier = ">=10.0.1" },
+    { name = "pillow", specifier = ">=11.1.0" },
     { name = "psycopg", extras = ["c", "pool"], marker = "extra == 'postgres'", specifier = "==3.2.12" },
     { name = "psycopg-c", marker = "python_full_version == '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'postgres'", url = "https://github.com/paperless-ngx/builder/releases/download/psycopg-bookworm-3.2.12/psycopg_c-3.2.12-cp312-cp312-linux_aarch64.whl" },
     { name = "psycopg-c", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'postgres'", url = "https://github.com/paperless-ngx/builder/releases/download/psycopg-bookworm-3.2.12/psycopg_c-3.2.12-cp312-cp312-linux_x86_64.whl" },
     { name = "psycopg-c", marker = "(python_full_version != '3.12.*' and platform_machine == 'aarch64' and extra == 'postgres') or (python_full_version != '3.12.*' and platform_machine == 'x86_64' and extra == 'postgres') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'postgres') or (sys_platform != 'linux' and extra == 'postgres')", specifier = "==3.2.12" },
     { name = "psycopg-pool", marker = "extra == 'postgres'", specifier = "==3.3" },
+    { name = "pydantic", specifier = ">=2.10" },
     { name = "python-dateutil", specifier = "~=2.9.0" },
     { name = "python-dotenv", specifier = "~=1.2.1" },
     { name = "python-gnupg", specifier = "~=0.5.4" },
@@ -3782,6 +3815,8 @@ requires-dist = [
     { name = "rapidfuzz", specifier = "~=3.14.0" },
     { name = "redis", extras = ["hiredis"], specifier = "~=5.2.1" },
     { name = "regex", specifier = ">=2025.9.18" },
+    { name = "reportlab", specifier = "~=4.3.1" },
+    { name = "requests", specifier = "~=2.32.3" },
     { name = "scikit-learn", specifier = "~=1.7.0" },
     { name = "sentence-transformers", specifier = ">=4.1" },
     { name = "setproctitle", specifier = "~=1.3.4" },
@@ -3795,7 +3830,7 @@ requires-dist = [
     { name = "zxing-cpp", marker = "python_full_version == '3.12.*' and platform_machine == 'aarch64' and sys_platform == 'linux'", url = "https://github.com/paperless-ngx/builder/releases/download/zxing-2.3.0/zxing_cpp-2.3.0-cp312-cp312-linux_aarch64.whl" },
     { name = "zxing-cpp", marker = "python_full_version == '3.12.*' and platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/paperless-ngx/builder/releases/download/zxing-2.3.0/zxing_cpp-2.3.0-cp312-cp312-linux_x86_64.whl" },
 ]
-provides-extras = ["docling", "mariadb", "postgres", "webserver"]
+provides-extras = ["docling", "mariadb", "postgres", "webserver", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -3856,6 +3891,7 @@ typing = [
     { name = "types-python-dateutil" },
     { name = "types-pytz" },
     { name = "types-redis" },
+    { name = "types-reportlab" },
     { name = "types-setuptools" },
     { name = "types-tqdm" },
 ]
@@ -5353,6 +5389,19 @@ wheels = [
 ]
 
 [[package]]
+name = "reportlab"
+version = "4.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "chardet", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "pillow", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a7/5c/9b23c8a9a69f2bc1f1268ed545f393a60b59cbe5f9d861a28b676f809729/reportlab-4.3.1.tar.gz", hash = "sha256:230f78b21667194d8490ac9d12958d5c14686352db7fbe03b95140fafdf5aa97", size = 3499248, upload-time = "2025-02-12T12:19:54.993Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/6b/42805895ed08a314a01be6110584b5d059328386988ddbc4f8f10014d30e/reportlab-4.3.1-py3-none-any.whl", hash = "sha256:0f37dd16652db3ef84363cf744632a28c38bd480d5bf94683466852d7bb678dd", size = 1949468, upload-time = "2025-02-12T12:19:49.691Z" },
+]
+
+[[package]]
 name = "requests"
 version = "2.32.5"
 source = { registry = "https://pypi.org/simple" }
@@ -6599,6 +6648,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3a/95/c054d3ac940e8bac4ca216470c80c26688a0e79e09f520a942bb27da3386/types-redis-4.6.0.20241004.tar.gz", hash = "sha256:5f17d2b3f9091ab75384153bfa276619ffa1cf6a38da60e10d5e6749cc5b902e", size = 49679, upload-time = "2024-10-04T02:43:59.224Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/55/82/7d25dce10aad92d2226b269bce2f85cfd843b4477cd50245d7d40ecf8f89/types_redis-4.6.0.20241004-py3-none-any.whl", hash = "sha256:ef5da68cb827e5f606c8f9c0b49eeee4c2669d6d97122f301d3a55dc6a63f6ed", size = 58737, upload-time = "2024-10-04T02:43:57.968Z" },
+]
+
+[[package]]
+name = "types-reportlab"
+version = "4.4.9.20260117"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/9b/de5d44670cce754e593cffd8ef8044ce58d032415fffaa50e5ccdf3dd496/types_reportlab-4.4.9.20260117.tar.gz", hash = "sha256:a274f3e7a6d54193bb4d0945a69656de46db212bfe1dd977d7d30b39bfac9de9", size = 69031, upload-time = "2026-01-17T03:14:32.876Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/38/7c4dcb40362313026bf5b39d4de14a8abc5c7b446260c039b603999428b0/types_reportlab-4.4.9.20260117-py3-none-any.whl", hash = "sha256:ef6584a2cb8e2538dd7047741b30e8439ba12c6e4672f243014e6b7a415febc2", size = 109748, upload-time = "2026-01-17T03:14:31.54Z" },
 ]
 
 [[package]]

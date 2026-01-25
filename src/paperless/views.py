@@ -65,7 +65,7 @@ class StandardPagination(PageNumberPagination):
         return Response(
             OrderedDict(
                 [
-                    ("count", self.page.paginator.count),
+                    ("count", self.page.paginator.count if self.page else 0),
                     ("next", self.get_next_link()),
                     ("previous", self.get_previous_link()),
                     ("all", self.get_all_result_ids()),
@@ -75,6 +75,8 @@ class StandardPagination(PageNumberPagination):
         )
 
     def get_all_result_ids(self):
+        if not self.page:
+            return []
         query = self.page.paginator.object_list
         if isinstance(query, DelayedQuery):
             try:
@@ -85,9 +87,9 @@ class StandardPagination(PageNumberPagination):
                     for doc_num in query.saved_results.get(0).results.docs()
                 ]
             except Exception:
-                pass
+                ids = []
         else:
-            ids = self.page.paginator.object_list.values_list("pk", flat=True)
+            ids = list(self.page.paginator.object_list.values_list("pk", flat=True))
         return ids
 
     def get_paginated_response_schema(self, schema):
@@ -141,8 +143,9 @@ class UserViewSet(ModelViewSet):
             and request.data.get("is_superuser") is not None
             and request.data.get("is_superuser") != user_to_update.is_superuser
         ):
-            return HttpResponseForbidden(
+            return Response(
                 "Superuser status can only be changed by a superuser",
+                status=403,
             )
         return super().update(request, *args, **kwargs)
 
@@ -377,7 +380,8 @@ class ApplicationConfigurationViewSet(ModelViewSet):
         )
 
         if (
-            not old_ai_index_enabled
+            old_instance
+            and not old_ai_index_enabled
             and new_ai_index_enabled
             and not vector_store_file_exists()
         ):
@@ -388,6 +392,16 @@ class ApplicationConfigurationViewSet(ModelViewSet):
                 scheduled=False,
                 auto=True,
             )
+
+    @action(detail=False, methods=["post"])
+    def rebuild_index(self, request, *args, **kwargs):
+        llmindex_index.delay(
+            progress_bar_disable=True,
+            rebuild=True,
+            scheduled=False,
+            auto=False,
+        )
+        return Response({"status": "Index rebuild started"})
 
 
 @extend_schema_view(
@@ -532,11 +546,13 @@ class LLMProxyView(GenericAPIView):
         if backend == "ollama" and endpoint:
             try:
                 url = f"{endpoint}/api/tags"
-                response = requests.get(url, timeout=5)
+                response = requests.get(url, timeout=30)  # Increase timeout
                 if response.status_code == 200:
                     return Response(response.json())
             except Exception as e:
-                logger.warning(f"Failed to fetch Ollama models from {url}: {e}")
+                logger.warning(
+                    f"Failed to fetch Ollama models from {endpoint}/api/tags: {e}",
+                )
 
         return Response([])
 
@@ -647,7 +663,11 @@ class OllamaProxyView(LLMProxyView):
         path = path or "api/tags"
         try:
             url = f"{endpoint}/{path}"
-            response = requests.get(url, params=request.GET, timeout=30)
+            # Extract params and remove proxy-specific ones
+            params = request.GET.copy()
+            params.pop("endpoint", None)
+            params.pop("backend", None)
+            response = requests.get(url, params=params, timeout=30)
             return Response(response.json(), status=response.status_code)
         except requests.RequestException as e:
             return Response({"error": str(e)}, status=400)
@@ -666,7 +686,12 @@ class OllamaProxyView(LLMProxyView):
         path = path or "api/generate"
         try:
             url = f"{endpoint}/{path}"
-            response = requests.post(url, json=request.data, timeout=120)
+            # Extract data and remove proxy-specific ones if any
+            data = request.data.copy()
+            # Ollama doesn't use these but we might have them from LLM proxy interface
+            data.pop("endpoint", None)
+            data.pop("backend", None)
+            response = requests.post(url, json=data, timeout=120)
             return Response(response.json(), status=response.status_code)
         except requests.RequestException as e:
             return Response({"error": str(e)}, status=400)
