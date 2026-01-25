@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("documents", "1078_add_ai_suggestion_history"),
+        ("documents", "0006_add_ai_suggestion_history"),
     ]
 
     operations = [

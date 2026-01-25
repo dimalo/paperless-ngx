@@ -8,7 +8,7 @@ from django.db import models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("documents", "1076_workflowaction_order"),
+        ("documents", "0004_remove_document_storage_type"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

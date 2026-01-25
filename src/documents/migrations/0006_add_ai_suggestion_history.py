@@ -8,7 +8,7 @@ from django.db import models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("documents", "1077_aireviewqueue"),
+        ("documents", "0005_aireviewqueue"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
