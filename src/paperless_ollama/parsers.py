@@ -30,6 +30,7 @@ class OllamaDocumentParser(ImageDocumentParser):
     def __init__(self, logging_group, progress_callback=None):
         super().__init__(logging_group, progress_callback)
         self.page_results = []
+        self.page_original_dimensions = []  # Store (width, height) for each page
 
     def get_settings(self) -> OllamaConfig:
         """
@@ -41,9 +42,8 @@ class OllamaDocumentParser(ImageDocumentParser):
         if self.settings.ollama_ocr_debug_thumbnail and self.page_results:
             self.log.info("Generating debug thumbnail with bounding boxes...")
             try:
-                # Get the first page's processed image or original
-                # For simplicity, we assume the first page in self.page_results[0]
-                # matches the first image generated in tempdir during parse.
+                # Use the original page image (before resizing for DeepSeek-OCR)
+                # Look for the original converted page images
                 images = sorted(list(Path(self.tempdir).glob("page-*.png")))
                 if not images:
                     return super().get_thumbnail(document_path, mime_type, file_name)
@@ -51,19 +51,41 @@ class OllamaDocumentParser(ImageDocumentParser):
                 first_image = images[0]
                 ocr_data = self._parse_ocr_coordinates(self.page_results[0])
 
+                # Get original dimensions if available
+                if self.page_original_dimensions:
+                    orig_w, orig_h = self.page_original_dimensions[0]
+                else:
+                    # Fallback to image dimensions
+                    with Image.open(first_image) as img:
+                        orig_w, orig_h = img.size
+
                 with Image.open(first_image) as img:
                     img = img.convert("RGB")
                     draw = ImageDraw.Draw(img)
                     w, h = img.size
 
                     for label, box in ocr_data:
-                        # Box is [x1, y1, x2, y2] in 0-999
+                        # Box is [x1, y1, x2, y2] in 0-999 normalized coordinates
+                        # Scale to original dimensions, then to current image size
                         x1, y1, x2, y2 = box
-                        x1, x2 = (x1 * w) / 1000, (x2 * w) / 1000
-                        y1, y2 = (y1 * h) / 1000, (y2 * h) / 1000
+                        # First scale from 0-999 to original dimensions
+                        x1_orig = (x1 * orig_w) / 1000
+                        y1_orig = (y1 * orig_h) / 1000
+                        x2_orig = (x2 * orig_w) / 1000
+                        y2_orig = (y2 * orig_h) / 1000
 
-                        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-                        draw.text((x1, y1 - 10), label, fill="red")
+                        # Then scale to current image dimensions (if different)
+                        x1_img = (x1_orig * w) / orig_w
+                        y1_img = (y1_orig * h) / orig_h
+                        x2_img = (x2_orig * w) / orig_w
+                        y2_img = (y2_orig * h) / orig_h
+
+                        draw.rectangle(
+                            [x1_img, y1_img, x2_img, y2_img],
+                            outline="red",
+                            width=3,
+                        )
+                        draw.text((x1_img, y1_img - 10), label, fill="red")
 
                     out_path = Path(self.tempdir) / "debug_thumbnail.webp"
                     img.save(out_path, format="WEBP")
@@ -133,9 +155,47 @@ class OllamaDocumentParser(ImageDocumentParser):
             # (though it will likely fail in the API if it was the cause)
             return image_path
 
-    def _process_image(self, image_path: Path) -> str:
+    def _resize_for_deepseek_ocr(self, image_path: Path) -> tuple[Path, int, int]:
+        """
+        Resize image to 1024x1024 for DeepSeek-OCR model.
+        Returns: (resized_image_path, original_width, original_height)
+        """
+        # Only resize if using deepseek-ocr model
+        if "deepseek-ocr" not in self.settings.model.lower():
+            with Image.open(image_path) as img:
+                return image_path, img.width, img.height
+
+        try:
+            with Image.open(image_path) as img:
+                original_width, original_height = img.size
+                self.log.info(
+                    f"Resizing image from {original_width}x{original_height} to 1024x1024 for DeepSeek-OCR",
+                )
+
+                # Resize maintaining aspect ratio, padding to 1024x1024
+                img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+
+                # Create a new 1024x1024 white background image
+                resized = Image.new("RGB", (1024, 1024), "white")
+
+                # Paste the resized image centered
+                offset = ((1024 - img.width) // 2, (1024 - img.height) // 2)
+                resized.paste(img, offset)
+
+                output_path = Path(self.tempdir) / f"{image_path.stem}_1024.png"
+                resized.save(output_path, format="PNG")
+
+                return output_path, original_width, original_height
+        except Exception as e:
+            self.log.warning(f"Could not resize {image_path} for DeepSeek-OCR: {e}")
+            # Fallback to original
+            with Image.open(image_path) as img:
+                return image_path, img.width, img.height
+
+    def _process_image(self, image_path: Path) -> tuple[str, int, int]:
         """
         Process a single image: preprocess, encode, call API.
+        Returns: (ocr_result, original_width, original_height)
         """
         self.log.info(f"Processing image {image_path} with Ollama")
         processed_path = self.preprocess_image(image_path)
@@ -143,7 +203,12 @@ class OllamaDocumentParser(ImageDocumentParser):
         # Ensure image is in a supported format (PNG) for the API
         processed_path = self._convert_to_png(processed_path)
 
-        image_base64 = self._encode_image_to_base64(processed_path)
+        # Resize for DeepSeek-OCR if needed and get original dimensions
+        resized_path, original_width, original_height = self._resize_for_deepseek_ocr(
+            processed_path,
+        )
+
+        image_base64 = self._encode_image_to_base64(resized_path)
         prompt = (
             self.settings.prompt_template
             or "Extract text as Markdown with bounding boxes using <|ref|>text</|ref|><|det|>[[x1,y1,x2,y2]]</|det|> format."
@@ -151,7 +216,7 @@ class OllamaDocumentParser(ImageDocumentParser):
         self.log.info(f"Sending request to Ollama (model: {self.settings.model})...")
         result = self._call_ollama_api(image_base64, prompt)
         self.log.info("Ollama request finished.")
-        return result
+        return result, original_width, original_height
 
     def _parse_ocr_coordinates(self, raw_text: str) -> list[tuple[str, list[int]]]:
         """
@@ -185,13 +250,21 @@ class OllamaDocumentParser(ImageDocumentParser):
         ocr_data: list[tuple[str, list[int]]],
         *,
         draw_boxes: bool = False,
+        original_width: int | None = None,
+        original_height: int | None = None,
     ) -> Path:
         """
         Generate a searchable PDF using reportlab overlay.
+        If original_width/original_height are provided, coordinates will be scaled
+        from normalized 0-999 to those dimensions instead of the image dimensions.
         """
         output_path = Path(self.tempdir) / f"{image_path.stem}_overlay.pdf"
         with Image.open(image_path) as img:
             w, h = img.size
+
+        # Use original dimensions for coordinate scaling if provided
+        coord_w = original_width if original_width else w
+        coord_h = original_height if original_height else h
 
         c = canvas.Canvas(str(output_path), pagesize=(w, h))
 
@@ -203,11 +276,11 @@ class OllamaDocumentParser(ImageDocumentParser):
         for text, box in ocr_data:
             # Normalized coordinates 0-999
             x1, y1, _, y2 = box
-            # Scale to image dimensions
-            px1 = (x1 * w) / 1000
+            # Scale to original/target dimensions
+            px1 = (x1 * coord_w) / 1000
             # Flip Y for reportlab (top-down 0-999 to bottom-up pixels)
-            py1 = h - (y2 * h) / 1000
-            py2 = h - (y1 * h) / 1000
+            py1 = coord_h - (y2 * coord_h) / 1000
+            py2 = coord_h - (y1 * coord_h) / 1000
 
             font_size = max(py2 - py1, 1)
             c.setFont("Helvetica", font_size)
@@ -222,7 +295,7 @@ class OllamaDocumentParser(ImageDocumentParser):
                 c.setLineWidth(1)
                 # width = scaled x2 - scaled x1
                 # height = py2 - py1 (since py2 is top Y in cartesian)
-                px2 = (box[2] * w) / 1000
+                px2 = (box[2] * coord_w) / 1000
                 rect_width = px2 - px1
                 rect_height = py2 - py1
                 c.rect(px1, py1, rect_width, rect_height, stroke=1, fill=0)
@@ -301,8 +374,9 @@ class OllamaDocumentParser(ImageDocumentParser):
 
                 for idx, image_path in enumerate(image_paths, start=1):
                     self.log.info(f"Processing page {idx}/{total_pages}")
-                    raw_result = self._process_image(image_path)
+                    raw_result, orig_w, orig_h = self._process_image(image_path)
                     self.page_results.append(raw_result)
+                    self.page_original_dimensions.append((orig_w, orig_h))
 
                     text = self._filter_ocr_text(raw_result)
                     texts.append(text)
@@ -315,6 +389,8 @@ class OllamaDocumentParser(ImageDocumentParser):
                                 image_path,
                                 ocr_data,
                                 draw_boxes=self.settings.ollama_ocr_debug_thumbnail,
+                                original_width=orig_w,
+                                original_height=orig_h,
                             ),
                         )
 
@@ -336,8 +412,9 @@ class OllamaDocumentParser(ImageDocumentParser):
                     self.archive_path = final_archive
 
             elif self.is_image(mime_type):
-                raw_result = self._process_image(document_path)
+                raw_result, orig_w, orig_h = self._process_image(document_path)
                 self.page_results.append(raw_result)
+                self.page_original_dimensions.append((orig_w, orig_h))
                 self.text = self._filter_ocr_text(raw_result)
 
                 ocr_data = self._parse_ocr_coordinates(raw_result)
@@ -346,6 +423,8 @@ class OllamaDocumentParser(ImageDocumentParser):
                         document_path,
                         ocr_data,
                         draw_boxes=self.settings.ollama_ocr_debug_thumbnail,
+                        original_width=orig_w,
+                        original_height=orig_h,
                     )
 
             elif mime_type in ["text/plain", "text/markdown"]:

@@ -127,12 +127,16 @@ def get_embedding_dim() -> int:
     from a dummy embedding and stores it for future use.
     """
     config = AIConfig()
-    if config.llm_embedding_backend == "openai":
+    if config.llm_embedding_backend == LLMEmbeddingBackend.OPENAI:
         model = config.llm_embedding_model or "text-embedding-3-small"
-    elif config.llm_embedding_backend == "ollama":
+    elif config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA:
         model = config.llm_embedding_model or "nomic-embed-text"
-    else:
+    elif config.llm_embedding_backend == LLMEmbeddingBackend.HUGGINGFACE:
         model = config.llm_embedding_model or "sentence-transformers/all-MiniLM-L6-v2"
+    else:
+        raise ValueError(
+            f"Unsupported embedding backend: {config.llm_embedding_backend}",
+        )
 
     meta_path: Path = settings.LLM_INDEX_DIR / "meta.json"
     if meta_path.exists():

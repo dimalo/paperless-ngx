@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
+import pytest
 from django.test import TestCase
 
 from documents.parsers import ParseError
@@ -13,6 +14,7 @@ from paperless_ollama.parsers import OllamaDocumentParser
 class TestOllamaParser(DirectoriesMixin, TestCase):
     SAMPLE_FILES = Path(__file__).resolve().parent / "samples"
 
+    @pytest.mark.django_db
     def test_consumer_declaration(self):
         """Test that the parser is only registered when enabled."""
         from paperless_ollama.signals import ollama_consumer_declaration
@@ -37,18 +39,24 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
         ]
         mock_completion.return_value = mock_response
 
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            image_path = Path(tmp.name)
-            # Create a dummy image file
-            tmp.write(b"dummy image data")
+        # Mock _process_image to return tuple (result, width, height)
+        with mock.patch.object(
+            parser,
+            "_process_image",
+            return_value=("Extracted text from image.", 800, 600),
+        ):
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                image_path = Path(tmp.name)
+                # Create a dummy image file
+                tmp.write(b"dummy image data")
 
-        try:
-            parser.parse(image_path, "image/png")
+            try:
+                parser.parse(image_path, "image/png")
 
-            self.assertEqual(parser.text, "Extracted text from image.")
-            self.assertIsNotNone(parser.archive_path)
-        finally:
-            image_path.unlink(missing_ok=True)
+                self.assertEqual(parser.text, "Extracted text from image.")
+                self.assertIsNotNone(parser.archive_path)
+            finally:
+                image_path.unlink(missing_ok=True)
 
     def test_parse_pdf_success(self):
         """
@@ -66,7 +74,7 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
             mock.patch.object(
                 parser,
                 "_process_image",
-                return_value="Page 1 text.",
+                return_value=("Page 1 text.", 800, 600),  # Return tuple with dimensions
             ) as mock_process,
         ):
             mock_response = mock.Mock()
