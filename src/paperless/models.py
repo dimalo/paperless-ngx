@@ -89,6 +89,12 @@ class LLMBackend(models.TextChoices):
     OLLAMA = ("ollama", _("Ollama"))
 
 
+class VectorStoreChoices(models.TextChoices):
+    AUTO = ("auto", _("Automatic (suggested)"))
+    FAISS = ("faiss", _("FAISS (local files)"))
+    POSTGRES = ("postgres", _("Postgres (PGVector)"))
+
+
 class ApplicationConfiguration(AbstractSingletonModel):
     """
     Settings which are common across more than 1 parser
@@ -352,6 +358,54 @@ class ApplicationConfiguration(AbstractSingletonModel):
         verbose_name=_("LLM request timeout (seconds)"),
         null=True,
         validators=[MinValueValidator(1)],
+    )
+
+    """
+    Vector storage settings
+    """
+
+    vector_store_backend = models.CharField(
+        verbose_name=_("Vector store backend"),
+        blank=True,
+        null=True,
+        max_length=16,
+        choices=VectorStoreChoices.choices,
+        default=VectorStoreChoices.AUTO,
+    )
+
+    vector_store_name = models.CharField(
+        verbose_name=_("Vector database name"),
+        blank=True,
+        null=True,
+        max_length=256,
+        help_text=_("Defaults to <main-db-name>-vector"),
+    )
+
+    vector_store_host = models.CharField(
+        verbose_name=_("Vector database host"),
+        blank=True,
+        null=True,
+        max_length=256,
+    )
+
+    vector_store_port = models.PositiveIntegerField(
+        verbose_name=_("Vector database port"),
+        blank=True,
+        null=True,
+    )
+
+    vector_store_user = models.CharField(
+        verbose_name=_("Vector database user"),
+        blank=True,
+        null=True,
+        max_length=128,
+    )
+
+    vector_store_pass = models.CharField(
+        verbose_name=_("Vector database password"),
+        blank=True,
+        null=True,
+        max_length=1024,
     )
 
     """

@@ -70,9 +70,13 @@ def test_update_llm_index(
     real_document,
     mock_embed_model,
 ):
-    with patch("documents.models.Document.objects.all") as mock_all:
-        mock_queryset = MagicMock()
-        mock_queryset.exists.return_value = True
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        with patch("documents.models.Document.objects.all") as mock_all:
+            mock_queryset = MagicMock()
+            mock_queryset.exists.return_value = True
         mock_queryset.__iter__.return_value = iter([real_document])
         mock_all.return_value = mock_queryset
         indexing.update_llm_index(rebuild=True)
@@ -86,17 +90,21 @@ def test_update_llm_index_removes_meta(
     real_document,
     mock_embed_model,
 ):
-    # Pre-create a meta.json with incorrect data
-    (temp_llm_index_dir / "meta.json").write_text(
-        json.dumps({"embedding_model": "old", "dim": 1}),
-    )
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        # Pre-create a meta.json with incorrect data
+        (temp_llm_index_dir / "meta.json").write_text(
+            json.dumps({"embedding_model": "old", "dim": 1}),
+        )
 
-    with patch("documents.models.Document.objects.all") as mock_all:
-        mock_queryset = MagicMock()
-        mock_queryset.exists.return_value = True
-        mock_queryset.__iter__.return_value = iter([real_document])
-        mock_all.return_value = mock_queryset
-        indexing.update_llm_index(rebuild=True)
+        with patch("documents.models.Document.objects.all") as mock_all:
+            mock_queryset = MagicMock()
+            mock_queryset.exists.return_value = True
+            mock_queryset.__iter__.return_value = iter([real_document])
+            mock_all.return_value = mock_queryset
+            indexing.update_llm_index(rebuild=True)
 
     meta = json.loads((temp_llm_index_dir / "meta.json").read_text())
     from paperless.config import AIConfig
@@ -123,13 +131,17 @@ def test_update_llm_index_partial_update(
         checksum="1234567890abcdef",
     )
     # Initial index
-    with patch("documents.models.Document.objects.all") as mock_all:
-        mock_queryset = MagicMock()
-        mock_queryset.exists.return_value = True
-        mock_queryset.__iter__.return_value = iter([real_document, doc2])
-        mock_all.return_value = mock_queryset
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        with patch("documents.models.Document.objects.all") as mock_all:
+            mock_queryset = MagicMock()
+            mock_queryset.exists.return_value = True
+            mock_queryset.__iter__.return_value = iter([real_document, doc2])
+            mock_all.return_value = mock_queryset
 
-        indexing.update_llm_index(rebuild=True)
+            indexing.update_llm_index(rebuild=True)
 
     # modify document
     updated_document = real_document
@@ -143,20 +155,24 @@ def test_update_llm_index_partial_update(
         checksum="abcdef1234567890",
     )
 
-    with patch("documents.models.Document.objects.all") as mock_all:
-        mock_queryset = MagicMock()
-        mock_queryset.exists.return_value = True
-        mock_queryset.__iter__.return_value = iter([updated_document, doc2, doc3])
-        mock_all.return_value = mock_queryset
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        with patch("documents.models.Document.objects.all") as mock_all:
+            mock_queryset = MagicMock()
+            mock_queryset.exists.return_value = True
+            mock_queryset.__iter__.return_value = iter([updated_document, doc2, doc3])
+            mock_all.return_value = mock_queryset
 
-        # assert logs "Updating LLM index with %d new nodes and removing %d old nodes."
-        with patch("paperless_ai.indexing.logger") as mock_logger:
+            # assert logs "Updating LLM index with %d new nodes and removing %d old nodes."
+            with patch("paperless_ai.indexing.logger") as mock_logger:
+                indexing.update_llm_index(rebuild=False)
+                mock_logger.info.assert_called_once_with(
+                    "Updating %d nodes in LLM index.",
+                    2,
+                )
             indexing.update_llm_index(rebuild=False)
-            mock_logger.info.assert_called_once_with(
-                "Updating %d nodes in LLM index.",
-                2,
-            )
-        indexing.update_llm_index(rebuild=False)
 
     assert any(temp_llm_index_dir.glob("*.json"))
 
@@ -248,8 +264,12 @@ def test_add_or_update_document_updates_existing_entry(
     real_document,
     mock_embed_model,
 ):
-    indexing.update_llm_index(rebuild=True)
-    indexing.llm_index_add_or_update_document(real_document)
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        indexing.update_llm_index(rebuild=True)
+        indexing.llm_index_add_or_update_document(real_document)
 
     assert any(temp_llm_index_dir.glob("*.json"))
 
@@ -260,13 +280,17 @@ def test_remove_document_deletes_node_from_docstore(
     real_document,
     mock_embed_model,
 ):
-    indexing.update_llm_index(rebuild=True)
-    index = indexing.load_or_build_index()
-    assert len(index.docstore.docs) == 1
+    with override_settings(
+        PAPERLESS_AI_VECTOR_STORE="faiss",
+        LLM_EMBEDDING_BACKEND="huggingface",
+    ):
+        indexing.update_llm_index(rebuild=True)
+        index = indexing.load_or_build_index()
+        assert len(index.docstore.docs) == 1
 
-    indexing.llm_index_remove_document(real_document)
-    index = indexing.load_or_build_index()
-    assert len(index.docstore.docs) == 0
+        indexing.llm_index_remove_document(real_document)
+        index = indexing.load_or_build_index()
+        assert len(index.docstore.docs) == 0
 
 
 @pytest.mark.django_db
@@ -299,7 +323,7 @@ def test_query_similar_documents(
     with (
         patch("paperless_ai.indexing.get_or_create_storage_context") as mock_storage,
         patch("paperless_ai.indexing.load_or_build_index") as mock_load_or_build_index,
-        patch("paperless_ai.indexing.VectorIndexRetriever") as mock_retriever_cls,
+        patch("llama_index.core.retrievers.VectorIndexRetriever") as mock_retriever_cls,
         patch("paperless_ai.indexing.Document.objects.filter") as mock_filter,
     ):
         mock_storage.return_value = MagicMock()

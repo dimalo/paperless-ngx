@@ -1,59 +1,29 @@
 import logging
-import shutil
 from pathlib import Path
 
-import faiss
 import llama_index.core.settings as llama_settings
-import tqdm
 from django.conf import settings
 from llama_index.core import Document as LlamaDocument
-from llama_index.core import StorageContext
 from llama_index.core import VectorStoreIndex
 from llama_index.core import load_index_from_storage
-from llama_index.core.indices.prompt_helper import PromptHelper
 from llama_index.core.node_parser import SimpleNodeParser
-from llama_index.core.prompts import PromptTemplate
-from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.schema import BaseNode
-from llama_index.core.storage.docstore import SimpleDocumentStore
-from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.text_splitter import TokenTextSplitter
-from llama_index.vector_stores.faiss import FaissVectorStore
+from tqdm import tqdm
 
 from documents.models import Document
 from paperless_ai.embedding import build_llm_index_text
-from paperless_ai.embedding import get_embedding_dim
 from paperless_ai.embedding import get_embedding_model
+from paperless_ai.vector_store import VectorStoreFactory
 
 logger = logging.getLogger("paperless_ai.indexing")
 
 
 def get_or_create_storage_context(*, rebuild=False):
     """
-    Loads or creates the StorageContext (vector store, docstore, index store).
-    If rebuild=True, deletes and recreates everything.
+    Loads or creates the StorageContext using VectorStoreFactory.
     """
-    if rebuild:
-        shutil.rmtree(settings.LLM_INDEX_DIR, ignore_errors=True)
-        settings.LLM_INDEX_DIR.mkdir(parents=True, exist_ok=True)
-
-    if rebuild or not settings.LLM_INDEX_DIR.exists():
-        embedding_dim = get_embedding_dim()
-        faiss_index = faiss.IndexFlatL2(embedding_dim)
-        vector_store = FaissVectorStore(faiss_index=faiss_index)
-        docstore = SimpleDocumentStore()
-        index_store = SimpleIndexStore()
-    else:
-        vector_store = FaissVectorStore.from_persist_dir(settings.LLM_INDEX_DIR)
-        docstore = SimpleDocumentStore.from_persist_dir(settings.LLM_INDEX_DIR)
-        index_store = SimpleIndexStore.from_persist_dir(settings.LLM_INDEX_DIR)
-
-    return StorageContext.from_defaults(
-        docstore=docstore,
-        index_store=index_store,
-        vector_store=vector_store,
-        persist_dir=settings.LLM_INDEX_DIR,
-    )
+    return VectorStoreFactory.get_storage_context(rebuild=rebuild)
 
 
 def build_document_node(document: Document) -> list[BaseNode]:
@@ -138,23 +108,39 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
         return msg
 
     if rebuild or not vector_store_file_exists():
-        # remove meta.json to force re-detection of embedding dim
-        (settings.LLM_INDEX_DIR / "meta.json").unlink(missing_ok=True)
+        if rebuild:
+            # remove meta.json to force re-detection of embedding dim
+            (settings.LLM_INDEX_DIR / "meta.json").unlink(missing_ok=True)
+
         # Rebuild index from scratch
         logger.info("Rebuilding LLM index.")
         embed_model = get_embedding_model()
         llama_settings.Settings.embed_model = embed_model
-        storage_context = get_or_create_storage_context(rebuild=True)
-        for document in tqdm.tqdm(documents, disable=progress_bar_disable):
-            document_nodes = build_document_node(document)
-            nodes.extend(document_nodes)
+        storage_context = get_or_create_storage_context(rebuild=rebuild)
 
-        index = VectorStoreIndex(
-            nodes=nodes,
-            storage_context=storage_context,
-            embed_model=embed_model,
-            show_progress=not progress_bar_disable,
-        )
+        # When using local stores (FAISS), we need to handle nodes manually.
+        # Vector stores like Postgres handle their own storage.
+        if VectorStoreFactory.get_vector_store_backend() == "faiss":
+            for document in tqdm(documents, disable=progress_bar_disable):
+                document_nodes = build_document_node(document)
+                nodes.extend(document_nodes)
+
+            index = VectorStoreIndex(
+                nodes=nodes,
+                storage_context=storage_context,
+                embed_model=embed_model,
+                show_progress=not progress_bar_disable,
+            )
+        else:
+            # Postgres/Vector store - just build the index shell and insert
+            index = VectorStoreIndex.from_documents(
+                [],  # start empty
+                storage_context=storage_context,
+                embed_model=embed_model,
+            )
+            for document in tqdm(documents, disable=progress_bar_disable):
+                index.insert_nodes(build_document_node(document))
+
         msg = "LLM index rebuilt successfully."
     else:
         # Update existing index
@@ -165,7 +151,7 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
             for node in index.docstore.get_nodes(all_node_ids)
         }
 
-        for document in tqdm.tqdm(documents, disable=progress_bar_disable):
+        for document in tqdm(documents, disable=progress_bar_disable):
             doc_id = str(document.id)
             document_modified = document.modified.isoformat()
 
@@ -194,7 +180,9 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
             msg = "No changes detected in LLM index."
             logger.info(msg)
 
-    index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
+    # Persist only if using a local store that needs it
+    if VectorStoreFactory.get_vector_store_backend() == "faiss":
+        index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
     return msg
 
 
@@ -211,7 +199,8 @@ def llm_index_add_or_update_document(document: Document):
 
     index.insert_nodes(new_nodes)
 
-    index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
+    if VectorStoreFactory.get_vector_store_backend() == "faiss":
+        index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
 
 
 def llm_index_remove_document(document: Document):
@@ -222,10 +211,14 @@ def llm_index_remove_document(document: Document):
 
     remove_document_docstore_nodes(document, index)
 
-    index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
+    if VectorStoreFactory.get_vector_store_backend() == "faiss":
+        index.storage_context.persist(persist_dir=settings.LLM_INDEX_DIR)
 
 
 def truncate_content(content: str) -> str:
+    from llama_index.core.indices.prompt_helper import PromptHelper
+    from llama_index.core.prompts import PromptTemplate
+
     prompt_helper = PromptHelper(
         context_window=8192,
         num_output=512,
@@ -262,6 +255,8 @@ def query_similar_documents(
         if document_ids
         else None
     )
+
+    from llama_index.core.retrievers import VectorIndexRetriever
 
     retriever = VectorIndexRetriever(
         index=index,
