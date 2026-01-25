@@ -32,7 +32,7 @@
 			"**/.coverage": true,
 			"**/coverage.json": true
 		},
-		"python.defaultInterpreterPath": ".venv/bin/python3",
+		"python.defaultInterpreterPath": "/usr/src/paperless/paperless-ngx/.venv/bin/python",
 	},
 	"extensions": {
 		"recommendations": ["ms-python.python", "charliermarsh.ruff", "editorconfig.editorconfig"],

@@ -1,6 +1,6 @@
 [project]
 name = "paperless-ngx"
-version = "2.20.4"
+version = "2.20.5"
 description = "A community-supported supercharged document management system: scan, index and archive all your physical documents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,7 +27,7 @@ dependencies = [
   # WARNING: django does not use semver.
   #          Only patch versions are guaranteed to not introduce breaking changes.
   "django~=5.2.5",
-  "django-allauth[mfa,socialaccount]~=65.12.1",
+  "django-allauth[mfa,socialaccount]~=65.13.1",
   "django-auditlog~=3.4.1",
   "django-cachalot~=2.8.0",
   "django-celery-results~=2.6.0",
@@ -50,8 +50,6 @@ dependencies = [
   "gotenberg-client~=0.13.1",
   "httpx-oauth~=0.16",
   "imap-tools~=1.11.0",
-  "img2pdf~=0.6.1",
-  "inotifyrecursive~=0.3",
   "jinja2~=3.1.5",
   "langdetect~=1.0.9",
   "litellm>=1.59.8",
@@ -88,7 +86,7 @@ dependencies = [
   "tika-client~=0.10.0",
   "torch~=2.9.1",
   "tqdm~=4.67.1",
-  "watchdog~=6.0",
+  "watchfiles>=1.1.1",
   "whitenoise~=6.9",
   "whoosh-reloaded>=2.7.5",
   "zxing-cpp~=2.3.0",
