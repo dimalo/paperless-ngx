@@ -43,24 +43,31 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
         ]
         mock_completion.return_value = mock_response
 
-        # Mock _process_image to return tuple (result, width, height)
-        with mock.patch.object(
-            parser,
-            "_process_image",
-            return_value=("Extracted text from image.", 800, 600),
-        ):
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                image_path = Path(tmp.name)
-                # Create a dummy image file
-                tmp.write(b"dummy image data")
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            image_path = Path(tmp.name)
+            # Create a dummy image file
+            tmp.write(b"dummy image data")
 
-            try:
+        try:
+            # Mock _prepare_message and _call_ollama_api_sequential
+            with (
+                mock.patch.object(
+                    parser,
+                    "_prepare_message",
+                    return_value=([{"role": "user"}], 800, 600),
+                ),
+                mock.patch.object(
+                    parser,
+                    "_call_ollama_api_sequential",
+                    return_value="Extracted text from image.",
+                ),
+            ):
                 parser.parse(image_path, "image/png")
 
-                self.assertEqual(parser.text, "Extracted text from image.")
-                self.assertIsNotNone(parser.archive_path)
-            finally:
-                image_path.unlink(missing_ok=True)
+            self.assertEqual(parser.text, "Extracted text from image.")
+            self.assertIsNotNone(parser.archive_path)
+        finally:
+            image_path.unlink(missing_ok=True)
 
     def test_parse_pdf_success(self):
         """
@@ -75,11 +82,6 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 "_convert_pdf_pages_to_images",
                 return_value=[Path("dummy.png")],
             ) as mock_convert,
-            mock.patch.object(
-                parser,
-                "_process_image",
-                return_value=("Page 1 text.", 800, 600),  # Return tuple with dimensions
-            ) as mock_process,
         ):
             mock_response = mock.Mock()
             mock_response.choices = [
@@ -92,14 +94,31 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
                 tmp.write(b"dummy pdf data")
 
             try:
-                parser.parse(pdf_path, "application/pdf")
+                # Mock _prepare_message and _call_ollama_api_batch
+                with (
+                    mock.patch.object(
+                        parser,
+                        "_prepare_message",
+                        return_value=([{"role": "user"}], 800, 600),
+                    ),
+                    mock.patch.object(
+                        parser,
+                        "_call_ollama_api_batch",
+                        return_value=["Page 1 text."],
+                    ),
+                    mock.patch.object(
+                        Path,
+                        "exists",
+                        return_value=True,
+                    ),  # Mock existence of dummy.png
+                ):
+                    parser.parse(pdf_path, "application/pdf")
 
                 self.assertEqual(parser.text, "Page 1 text.")
                 # Since we didn't mock generate_pdf_from_markdown or result in overlay,
                 # and fallback for PDF is None (to avoid deleting original), it should be None.
                 self.assertIsNone(parser.archive_path)
                 mock_convert.assert_called_once_with(pdf_path)
-                mock_process.assert_called_once_with(Path("dummy.png"))
             finally:
                 pdf_path.unlink(missing_ok=True)
 
@@ -167,16 +186,13 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
             mock_response.choices = [mock.Mock(message=mock.Mock(content="result"))]
             mock_completion.return_value = mock_response
 
-            parser._call_ollama_api("dummy_base64", "test prompt")
+            parser._call_ollama_api_sequential(
+                [{"role": "user", "content": [{"type": "text", "text": "test"}]}],
+            )
 
             call_args = mock_completion.call_args
             self.assertIsNotNone(call_args)
 
             # Check messages structure
             messages = call_args[1]["messages"]
-            content = messages[0]["content"]
-
-            self.assertEqual(len(content), 2)
-            self.assertEqual(content[0]["type"], "image_url")
-            self.assertEqual(content[1]["type"], "text")
-            self.assertEqual(content[1]["text"], "test prompt")
+            self.assertEqual(messages[0]["role"], "user")

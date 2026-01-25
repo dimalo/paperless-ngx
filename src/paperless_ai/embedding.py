@@ -1,5 +1,8 @@
+import asyncio
 import json
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -31,6 +34,8 @@ class LiteLLMEmbedding(BaseEmbedding):
     api_base: str | None = None
     api_key: str | None = None
     timeout: int = 60
+    MAX_RETRIES: int = 2
+    BATCH_SIZE: int = 4
 
     def __init__(
         self,
@@ -61,34 +66,137 @@ class LiteLLMEmbedding(BaseEmbedding):
         return await self._aget_text_embedding(query)
 
     def _get_text_embedding(self, text: str) -> list[float]:
-        response = litellm.embedding(
-            model=self._get_model_with_prefix(),
-            input=[text],
-            api_base=self.api_base,
-            api_key=self.api_key,
-            timeout=self.timeout,
-        )
-        return response.data[0]["embedding"]
+        attempt = 0
+        while True:
+            try:
+                response = litellm.embedding(
+                    model=self._get_model_with_prefix(),
+                    input=[text],
+                    api_base=self.api_base,
+                    api_key=self.api_key,
+                    timeout=self.timeout,
+                )
+                return response.data[0]["embedding"]
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
+                attempt += 1
+                if attempt > self.MAX_RETRIES:
+                    logger.error(
+                        f"LiteLLM embedding call failed after {attempt} attempts: {e}",
+                    )
+                    raise
+                logger.warning(
+                    f"LiteLLM embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
+                time.sleep(1)
 
     async def _aget_text_embedding(self, text: str) -> list[float]:
-        response = await litellm.aembedding(
-            model=self._get_model_with_prefix(),
-            input=[text],
-            api_base=self.api_base,
-            api_key=self.api_key,
-            timeout=self.timeout,
-        )
-        return response.data[0]["embedding"]
+        attempt = 0
+        while True:
+            try:
+                response = await litellm.aembedding(
+                    model=self._get_model_with_prefix(),
+                    input=[text],
+                    api_base=self.api_base,
+                    api_key=self.api_key,
+                    timeout=self.timeout,
+                )
+                return response.data[0]["embedding"]
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
+                attempt += 1
+                if attempt > self.MAX_RETRIES:
+                    logger.error(
+                        f"LiteLLM async embedding call failed after {attempt} attempts: {e}",
+                    )
+                    raise
+                logger.warning(
+                    f"LiteLLM async embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
+                # Use asyncio.sleep for async method
+                await asyncio.sleep(1)
 
     def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
-        response = litellm.embedding(
-            model=self._get_model_with_prefix(),
-            input=texts,
-            api_base=self.api_base,
-            api_key=self.api_key,
-            timeout=self.timeout,
-        )
-        return [item["embedding"] for item in response.data]
+        # Process in parallel batches of 4
+        all_embeddings = []
+
+        def process_batch(batch_texts):
+            attempt = 0
+            while True:
+                try:
+                    response = litellm.embedding(
+                        model=self._get_model_with_prefix(),
+                        input=batch_texts,
+                        api_base=self.api_base,
+                        api_key=self.api_key,
+                        timeout=self.timeout,
+                    )
+                    return [item["embedding"] for item in response.data]
+                except (
+                    litellm.Timeout,
+                    litellm.APIError,
+                    litellm.APIConnectionError,
+                ) as e:
+                    attempt += 1
+                    if attempt > self.MAX_RETRIES:
+                        raise
+                    logger.warning(
+                        f"LiteLLM batch embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                    )
+                    time.sleep(1)
+
+        # Chunk texts
+        batches = [
+            texts[i : i + self.BATCH_SIZE]
+            for i in range(0, len(texts), self.BATCH_SIZE)
+        ]
+
+        # Use ThreadPoolExecutor for parallel requests
+        with ThreadPoolExecutor(max_workers=self.BATCH_SIZE) as executor:
+            batch_results = list(executor.map(process_batch, batches))
+
+        # Flatten results
+        for result in batch_results:
+            all_embeddings.extend(result)
+
+        return all_embeddings
+
+    async def _aget_text_embeddings(self, texts: list[str]) -> list[list[float]]:
+        # Process in parallel batches of 4 using asyncio.gather
+        async def process_batch_async(batch_texts):
+            attempt = 0
+            while True:
+                try:
+                    response = await litellm.aembedding(
+                        model=self._get_model_with_prefix(),
+                        input=batch_texts,
+                        api_base=self.api_base,
+                        api_key=self.api_key,
+                        timeout=self.timeout,
+                    )
+                    return [item["embedding"] for item in response.data]
+                except (
+                    litellm.Timeout,
+                    litellm.APIError,
+                    litellm.APIConnectionError,
+                ) as e:
+                    attempt += 1
+                    if attempt > self.MAX_RETRIES:
+                        raise
+                    logger.warning(
+                        f"LiteLLM async batch embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                    )
+                    await asyncio.sleep(1)
+
+        batches = [
+            texts[i : i + self.BATCH_SIZE]
+            for i in range(0, len(texts), self.BATCH_SIZE)
+        ]
+        tasks = [process_batch_async(batch) for batch in batches]
+        batch_results = await asyncio.gather(*tasks)
+
+        all_embeddings = []
+        for result in batch_results:
+            all_embeddings.extend(result)
+        return all_embeddings
 
 
 def get_embedding_model() -> BaseEmbedding:

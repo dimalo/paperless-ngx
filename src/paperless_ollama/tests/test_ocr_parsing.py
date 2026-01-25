@@ -39,12 +39,29 @@ class TestOCRParsing(TestCase):
 
     def test_parse_ocr_coordinates_following_text(self):
         parser = OllamaDocumentParser(uuid.uuid4())
-        raw_text = (
-            "<|ref|>text<|/ref|><|det|>[[100, 100, 200, 200]]<|/det|> Actual Text"
-        )
+        # Case: Text follows a tag-like label
+        raw_text = "<|ref|>tag<|/ref|><|det|>[[100, 100, 200, 200]]<|/det|> Actual Text"
         ocr_data = parser._parse_ocr_coordinates(raw_text)
         self.assertEqual(len(ocr_data), 1)
         self.assertEqual(ocr_data[0][0], "Actual Text")
+
+    def test_parse_ocr_coordinates_escapes_missing_following(self):
+        parser = OllamaDocumentParser(uuid.uuid4())
+        # Case: Tag-like label with nothing substantial following it
+        raw_text = "<|ref|>AnyTag<|/ref|><|det|>[[100, 100, 200, 200]]<|/det|>"
+        ocr_data = parser._parse_ocr_coordinates(raw_text)
+        self.assertEqual(len(ocr_data), 1)
+        self.assertEqual(ocr_data[0][0], "<!-- AnyTag -->")
+
+    def test_parse_ocr_coordinates_prefers_following_for_short_refs(self):
+        parser = OllamaDocumentParser(uuid.uuid4())
+        # Case: Unknown tag (not in generic_labels) but looks like a tag (short, no spaces)
+        raw_text = (
+            "<|ref|>XYZ<|/ref|><|det|>[[100, 100, 200, 200]]<|/det|> Real Content"
+        )
+        ocr_data = parser._parse_ocr_coordinates(raw_text)
+        self.assertEqual(len(ocr_data), 1)
+        self.assertEqual(ocr_data[0][0], "Real Content")
 
     def test_filter_ocr_text_handles_newlines(self):
         parser = OllamaDocumentParser(uuid.uuid4())

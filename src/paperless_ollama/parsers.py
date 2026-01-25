@@ -1,5 +1,6 @@
 import base64
 import re
+import time
 from pathlib import Path
 
 import img2pdf
@@ -26,6 +27,9 @@ class OllamaDocumentParser(ImageDocumentParser):
     """
 
     logging_name = "paperless.parsing.ollama"
+
+    BATCH_SIZE = 4
+    MAX_RETRIES = 2
 
     def __init__(self, logging_group, progress_callback=None):
         super().__init__(logging_group, progress_callback)
@@ -107,7 +111,7 @@ class OllamaDocumentParser(ImageDocumentParser):
 
     def _call_ollama_api(self, image_base64: str, prompt: str) -> str:
         """
-        Call Ollama API using litellm to extract text from image.
+        Call Ollama API using litellm to extract text from image with retries.
         """
 
         messages = [
@@ -123,14 +127,66 @@ class OllamaDocumentParser(ImageDocumentParser):
             },
         ]
 
-        response = litellm.completion(
-            model=f"ollama/{self.settings.model}",
-            messages=messages,
-            stream=False,
-            api_base=self.settings.endpoint,
-            timeout=self.settings.timeout,
-        )
-        return response.choices[0].message.content
+        attempt = 0
+        while True:
+            try:
+                response = litellm.completion(
+                    model=f"ollama/{self.settings.model}",
+                    messages=messages,
+                    stream=False,
+                    api_base=self.settings.endpoint,
+                    timeout=self.settings.timeout,
+                )
+                return response.choices[0].message.content
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
+                attempt += 1
+                if attempt > self.MAX_RETRIES:
+                    self.log.error(
+                        f"Ollama API call failed after {attempt} attempts: {e}",
+                    )
+                    raise
+                self.log.warning(
+                    f"Ollama API call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
+                # Small sleep before retry
+                time.sleep(1)
+
+    def _call_ollama_api_batch(self, messages_list: list[list[dict]]) -> list[str]:
+        """
+        Call Ollama API for multiple images in parallel using litellm.batch_completion.
+        """
+        attempt = 0
+        while True:
+            try:
+                responses = litellm.batch_completion(
+                    model=f"ollama/{self.settings.model}",
+                    messages=messages_list,
+                    api_base=self.settings.endpoint,
+                    timeout=self.settings.timeout,
+                )
+                # litellm.batch_completion can return a list where some items are exceptions
+                # instead of Response objects. We need to check for this.
+                results = []
+                for idx, r in enumerate(responses):
+                    if isinstance(r, Exception):
+                        self.log.error(f"Batch item {idx} failed: {r}")
+                        raise r
+                    results.append(r.choices[0].message.content)
+                return results
+            except Exception as e:
+                # litellm.batch_completion might throw if the whole batch fails
+                # or if individual ones fail they might be in the list?
+                # Usually it throws if it's a connection/timeout issue for the lot.
+                attempt += 1
+                if attempt > self.MAX_RETRIES:
+                    self.log.error(
+                        f"Ollama batch API call failed after {attempt} attempts: {e}",
+                    )
+                    raise
+                self.log.warning(
+                    f"Ollama batch API call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
+                time.sleep(1)
 
     def _convert_to_png(self, image_path: Path) -> Path:
         """
@@ -156,7 +212,7 @@ class OllamaDocumentParser(ImageDocumentParser):
 
     def _resize_for_deepseek_ocr(self, image_path: Path) -> tuple[Path, int, int]:
         """
-        Resize image to 1024x1024 for DeepSeek-OCR model.
+        Resize image to 1280x1280 for DeepSeek-OCR model.
         Returns: (resized_image_path, original_width, original_height)
         """
         # Only resize if using deepseek-ocr model
@@ -164,24 +220,31 @@ class OllamaDocumentParser(ImageDocumentParser):
             with Image.open(image_path) as img:
                 return image_path, img.width, img.height
 
+        target_size = 1280
+
         try:
             with Image.open(image_path) as img:
                 original_width, original_height = img.size
                 self.log.info(
-                    f"Resizing image from {original_width}x{original_height} to 1024x1024 for DeepSeek-OCR",
+                    f"Resizing image from {original_width}x{original_height} to {target_size}x{target_size} for DeepSeek-OCR",
                 )
 
-                # Resize maintaining aspect ratio, padding to 1024x1024
-                img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+                # Resize maintaining aspect ratio, padding to target size
+                img.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
 
-                # Create a new 1024x1024 white background image
-                resized = Image.new("RGB", (1024, 1024), "white")
+                # Create a new white background image
+                resized = Image.new("RGB", (target_size, target_size), "white")
 
                 # Paste the resized image centered
-                offset = ((1024 - img.width) // 2, (1024 - img.height) // 2)
+                offset = (
+                    (target_size - img.width) // 2,
+                    (target_size - img.height) // 2,
+                )
                 resized.paste(img, offset)
 
-                output_path = Path(self.tempdir) / f"{image_path.stem}_1024.png"
+                output_path = (
+                    Path(self.tempdir) / f"{image_path.stem}_{target_size}.png"
+                )
                 resized.save(output_path, format="PNG")
 
                 return output_path, original_width, original_height
@@ -191,18 +254,14 @@ class OllamaDocumentParser(ImageDocumentParser):
             with Image.open(image_path) as img:
                 return image_path, img.width, img.height
 
-    def _process_image(self, image_path: Path) -> tuple[str, int, int]:
+    def _prepare_message(self, image_path: Path) -> tuple[list[dict], int, int]:
         """
-        Process a single image: preprocess, encode, call API.
-        Returns: (ocr_result, original_width, original_height)
+        Prepare the message structure for a single image, including preprocessing.
+        Returns: (messages, original_width, original_height)
         """
-        self.log.info(f"Processing image {image_path} with Ollama")
+        self.log.info(f"Preparing image {image_path} for Ollama")
         processed_path = self.preprocess_image(image_path)
-
-        # Ensure image is in a supported format (PNG) for the API
         processed_path = self._convert_to_png(processed_path)
-
-        # Resize for DeepSeek-OCR if needed and get original dimensions
         resized_path, original_width, original_height = self._resize_for_deepseek_ocr(
             processed_path,
         )
@@ -214,15 +273,61 @@ class OllamaDocumentParser(ImageDocumentParser):
             "For each text block, use the format: <|ref|>exact text content</|ref|><|det|>[[x1,y1,x2,y2]]</|det|>. "
             "Example: <|ref|>The quick brown fox</|ref|><|det|>[[100,100,200,200]]</|det|>"
         )
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_base64}"},
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            },
+        ]
+        return messages, original_width, original_height
+
+    def _process_image(self, image_path: Path) -> tuple[str, int, int]:
+        """
+        Process a single image: preprocess, encode, call API.
+        Returns: (ocr_result, original_width, original_height)
+        """
+        messages, original_width, original_height = self._prepare_message(image_path)
+
         self.log.info(f"Sending request to Ollama (model: {self.settings.model})...")
-        result = self._call_ollama_api(image_base64, prompt)
+        result = self._call_ollama_api_sequential(messages)
         self.log.info("Ollama request finished.")
         return result, original_width, original_height
+
+    def _call_ollama_api_sequential(self, messages: list[dict]) -> str:
+        """
+        Internal helper for sequential call with retries.
+        """
+        attempt = 0
+        while True:
+            try:
+                response = litellm.completion(
+                    model=f"ollama/{self.settings.model}",
+                    messages=messages,
+                    stream=False,
+                    api_base=self.settings.endpoint,
+                    timeout=self.settings.timeout,
+                )
+                return response.choices[0].message.content
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
+                attempt += 1
+                if attempt > self.MAX_RETRIES:
+                    raise
+                self.log.warning(
+                    f"Ollama API call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
+                time.sleep(1)
 
     def _unscale_box(self, box: list[int], orig_w: int, orig_h: int) -> list[float]:
         """
         Convert normalized 0-999 coordinates from DeepSeek-OCR back to original dimensions.
-        Accounts for the 1024x1024 padding and centering.
+        Accounts for the 1280x1280 padding and centering.
         """
         x1, y1, x2, y2 = box
 
@@ -234,7 +339,7 @@ class OllamaDocumentParser(ImageDocumentParser):
                 (y2 * orig_h) / 1000,
             ]
 
-        target = 1024
+        target = 1280
         # Calculate how PIL.Image.thumbnail and our padding logic works
         if orig_w <= target and orig_h <= target:
             new_w, new_h = orig_w, orig_h
@@ -272,32 +377,27 @@ class OllamaDocumentParser(ImageDocumentParser):
             r"<\|ref\|>(.*?)<\|/ref\|>\s*<\|det\|>\[?\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]\]?<\|/det\|>",
         )
 
-        generic_labels = {
-            "text",
-            "subheading",
-            "heading",
-            "title",
-            "paragraph",
-            "caption",
-            "label",
-        }
-
         for match in pattern.finditer(raw_text):
             label = match.group(1).strip()
             box = [int(match.group(i)) for i in range(2, 6)]
 
-            # If the label is generic, try to find the actual text AFTER this tag
-            if label.lower() in generic_labels:
-                end_pos = match.end()
-                # Look ahead up to 200 characters for following text that isn't another tag
-                following_text = raw_text[end_pos : end_pos + 200]
-                # Match first non-tag block of text
-                # We look for the first sequence of characters that doesn't start with <
-                text_match = re.search(r"^\s*([^<>\n\r]+)", following_text)
-                if text_match:
-                    found_text = text_match.group(1).strip()
-                    if len(found_text) > 2:  # Only use if it looks substantial
-                        label = found_text
+            # Look ahead up to 200 characters for following text that isn't another tag
+            end_pos = match.end()
+            following_text = raw_text[end_pos : end_pos + 200]
+            # Match first non-tag block of text
+            text_match = re.search(r"^\s*([^<>\n\r]+)", following_text)
+
+            # "Tag-like" means no spaces and relatively short
+            is_tag_like = " " not in label and 1 < len(label) < 20
+
+            if text_match:
+                found_text = text_match.group(1).strip()
+                # If we found following text, and the label is tag-like, prefer the following text
+                if len(found_text) > 1 and is_tag_like:
+                    label = found_text
+            elif is_tag_like:
+                # If no text follows but it's tag-like, escape it
+                label = f"<!-- {label} -->"
 
             results.append((label, box))
         return results
@@ -375,12 +475,22 @@ class OllamaDocumentParser(ImageDocumentParser):
             py1 = coord_h - y2_orig
             py2 = coord_h - y1_orig
 
-            font_size = max(py2 - py1, 1)
-            c.setFont("Helvetica", font_size)
+            font_size = max(py2 - py1, 0.1)
 
             # Make text transparent
             c.setFillColor(Color(0, 0, 0, alpha=0))
-            c.drawString(px1, py1, text)
+
+            # Use textObject for horizontal scaling
+            text_width = c.stringWidth(text, "Helvetica", font_size)
+            target_width = max(x2_orig - x1_orig, 1)
+
+            to = c.beginText(px1, py1)
+            to.setFont("Helvetica", font_size)
+            if text_width > target_width:
+                scale = (target_width / text_width) * 100
+                to.setHorizScale(scale)
+            to.textOut(text)
+            c.drawText(to)
 
             if draw_boxes:
                 # Draw visible bounding box
@@ -460,13 +570,38 @@ class OllamaDocumentParser(ImageDocumentParser):
             if mime_type == "application/pdf":
                 # Convert PDF pages to images
                 image_paths = self._convert_pdf_pages_to_images(document_path)
-                texts = []
-                overlay_pdfs = []
                 total_pages = len(image_paths)
 
+                # Prepare all page messages
+                all_messages = []
+                all_orig_dims = []
                 for idx, image_path in enumerate(image_paths, start=1):
-                    self.log.info(f"Processing page {idx}/{total_pages}")
-                    raw_result, orig_w, orig_h = self._process_image(image_path)
+                    self.log.info(f"Preparing page {idx}/{total_pages}")
+                    messages, orig_w, orig_h = self._prepare_message(image_path)
+                    all_messages.append(messages)
+                    all_orig_dims.append((orig_w, orig_h))
+
+                # Process in batches of 4
+                raw_results = []
+                for i in range(0, total_pages, self.BATCH_SIZE):
+                    batch_messages = all_messages[i : i + self.BATCH_SIZE]
+                    self.log.info(
+                        f"Processing batch {i // self.BATCH_SIZE + 1} ({len(batch_messages)} pages)",
+                    )
+                    batch_results = self._call_ollama_api_batch(batch_messages)
+                    raw_results.extend(batch_results)
+
+                    # Update progress
+                    current_progress = min(i + self.BATCH_SIZE, total_pages)
+                    self.progress(current_progress, total_pages)
+
+                # Process results
+                texts = []
+                overlay_pdfs = []
+                for idx, (raw_result, (orig_w, orig_h)) in enumerate(
+                    zip(raw_results, all_orig_dims),
+                    start=1,
+                ):
                     self.page_results.append(raw_result)
                     self.page_original_dimensions.append((orig_w, orig_h))
 
@@ -478,16 +613,13 @@ class OllamaDocumentParser(ImageDocumentParser):
                     if ocr_data:
                         overlay_pdfs.append(
                             self._generate_overlay_pdf(
-                                image_path,
+                                image_paths[idx - 1],
                                 ocr_data,
                                 draw_boxes=self.settings.ollama_ocr_debug_thumbnail,
                                 original_width=orig_w,
                                 original_height=orig_h,
                             ),
                         )
-
-                    # Report progress after each page
-                    self.progress(idx, total_pages)
 
                 self.text = "\n\n".join(texts)
 
