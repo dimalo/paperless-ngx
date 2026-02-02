@@ -1009,20 +1009,7 @@ def auto_enhance_document_with_ai(sender, document: Document, **kwargs):
     if not ai_config.enable_auto_ai_enhancement:
         return
 
-    # Skip if document already has metadata and force update is disabled
-    if not ai_config.force_ai_update:
-        has_metadata = (
-            document.title
-            or document.tags.exists()
-            or document.correspondent
-            or document.document_type
-            or document.storage_path
-        )
-        if has_metadata:
-            logger.debug(
-                f"Document {document.pk} already has metadata, skipping auto-enhancement",
-            )
-            return
+    # Call async task for auto-enhancement
 
     # Call async task for auto-enhancement
     from documents.tasks import auto_enhance_document

@@ -210,6 +210,23 @@ class ApplicationConfigurationSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    ai_system_prompt = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+    enable_auto_ai_enhancement = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+    )
+    confidence_threshold = serializers.FloatField(
+        required=False,
+        allow_null=True,
+    )
+    auto_create_threshold = serializers.FloatField(
+        required=False,
+        allow_null=True,
+    )
 
     def run_validation(self, data):
         # Empty strings treated as None to avoid unexpected behavior

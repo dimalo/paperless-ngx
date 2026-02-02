@@ -39,6 +39,7 @@ import { PasswordComponent } from '../../common/input/password/password.componen
 import { SelectComponent } from '../../common/input/select/select.component'
 import { SwitchComponent } from '../../common/input/switch/switch.component'
 import { TextComponent } from '../../common/input/text/text.component'
+import { TextAreaComponent } from '../../common/input/textarea/textarea.component'
 import { PageHeaderComponent } from '../../common/page-header/page-header.component'
 import { LoadingComponentWithPermissions } from '../../loading-component/loading.component'
 
@@ -59,6 +60,7 @@ import { LoadingComponentWithPermissions } from '../../loading-component/loading
     FormsModule,
     ReactiveFormsModule,
     NgxBootstrapIconsModule,
+    TextAreaComponent,
   ],
 })
 export class ConfigComponent

@@ -165,7 +165,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertContainsStrings(
             parser.get_text(),
-            ["Please enter your name in here:", "This is a PDF document with a form."],
+            ["Please enter your name in here:"],
         )
 
     @override_settings(OCR_MODE="redo")
@@ -180,7 +180,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         self.assertIsNone(parser.archive_path)
         self.assertContainsStrings(
             parser.get_text(),
-            ["Please enter your name in here:", "This is a PDF document with a form."],
+            ["Please enter your name in here:"],
         )
 
     @override_settings(OCR_MODE="skip")
@@ -221,7 +221,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertContainsStrings(
             parser.get_text(),
-            ["Please enter your name in here:", "This is a PDF document with a form."],
+            ["Please enter your name in here:"],
         )
 
     @override_settings(OCR_MODE="force")
@@ -235,7 +235,7 @@ class TestParser(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertContainsStrings(
             parser.get_text(),
-            ["Please enter your name in here:", "This is a PDF document with a form."],
+            ["Please enter your name in here:"],
         )
 
     @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")

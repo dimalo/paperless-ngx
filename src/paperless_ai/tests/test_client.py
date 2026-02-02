@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -48,21 +49,26 @@ def test_get_model_with_prefix_openai(mock_ai_config):
 
 @patch("paperless_ai.client.litellm")
 def test_run_llm_query_success(mock_litellm, mock_ai_config):
-    """Test successful LLM query with tool calling."""
-    # Mock tool call response (new format using tools parameter)
-    mock_tool_call = MagicMock()
-    mock_tool_call.function.arguments = {
+    """Test successful LLM query with structured output extraction."""
+    # Mock response with JSON content (matching updated implementation)
+    mock_response_content = {
         "title": "Test Title",
+        "title_confidence": 0.9,
         "tags": ["test", "document"],
+        "tags_confidence": {"test": 0.85, "document": 0.95},
         "correspondents": ["John Doe"],
+        "correspondents_confidence": {"John Doe": 0.8},
         "document_types": ["report"],
+        "document_types_confidence": {"report": 0.75},
         "storage_paths": ["Reports"],
+        "storage_paths_confidence": {"Reports": 0.9},
         "dates": ["2023-01-01"],
     }
 
     mock_response = MagicMock()
     mock_response.choices = [MagicMock()]
-    mock_response.choices[0].message.tool_calls = [mock_tool_call]
+    mock_response.choices[0].message.content = json.dumps(mock_response_content)
+    mock_response.choices[0].message.reasoning_content = None
 
     mock_litellm.completion.return_value = mock_response
 
@@ -78,9 +84,9 @@ def test_run_llm_query_success(mock_litellm, mock_ai_config):
     assert call_kwargs["model"] == "ollama/llama3.1"
     assert call_kwargs["timeout"] == 120
     assert call_kwargs["api_base"] == "http://localhost:11434"
-    # Verify we're using tools parameter instead of deprecated functions
-    assert "tools" in call_kwargs
-    assert "tool_choice" in call_kwargs
+    # Verify we're NOT using tools parameter anymore
+    assert "tools" not in call_kwargs
+    assert "tool_choice" not in call_kwargs
 
 
 @patch("paperless_ai.client.litellm")
@@ -173,31 +179,3 @@ def test_run_chat_api_connection_error(mock_litellm, mock_ai_config):
 
     with pytest.raises(Exception, match="LLM API error"):
         client.run_chat([{"role": "user", "content": "Hello"}])
-
-
-@patch("paperless_ai.client.litellm")
-def test_run_llm_query_retry_mechanism_malformed_response(mock_litellm, mock_ai_config):
-    """Test retry mechanism logging uses model_dump_json if available."""
-
-    # Attempt 1: Fail (empty)
-    mock_response_fail1 = MagicMock()
-    mock_response_fail1.choices = [MagicMock()]
-    mock_response_fail1.choices[0].message.tool_calls = None
-    mock_response_fail1.choices[0].message.content = ""
-
-    # Attempt 2: Malformed response but has model_dump_json
-    mock_response_malformed = MagicMock()
-    del mock_response_malformed.choices  # Simulate missing choices
-    mock_response_malformed.model_dump_json.return_value = '{"error": "formatted_json"}'
-
-    # Configure side_effect
-    mock_litellm.completion.side_effect = [mock_response_fail1, mock_response_malformed]
-
-    client = AIClient()
-
-    # Verify exception uses formatted json
-    with pytest.raises(ValueError, match=r'Response: \{"error": "formatted_json"\}'):
-        client.run_llm_query("test_prompt")
-
-    assert mock_litellm.completion.call_count == 2
-    mock_response_malformed.model_dump_json.assert_called_once()

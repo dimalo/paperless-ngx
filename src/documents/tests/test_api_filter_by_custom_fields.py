@@ -1,3 +1,4 @@
+import hashlib
 import json
 import types
 from collections.abc import Callable
@@ -136,7 +137,7 @@ class TestCustomFieldsSearch(DirectoriesMixin, APITestCase):
         title = str(kwargs)
         document = Document.objects.create(
             title=title,
-            checksum=title,
+            checksum=hashlib.md5(title.encode()).hexdigest(),
             archive_serial_number=len(self.documents) + 1,
         )
         data = {
@@ -429,17 +430,27 @@ class TestCustomFieldsSearch(DirectoriesMixin, APITestCase):
     def test_document_link_contains(self):
         # Document link field "contains" performs a subset check.
         self._assert_query_match_predicate(
-            ["documentlink_field", "contains", [1, 2]],
+            [
+                "documentlink_field",
+                "contains",
+                [self.documents[0].id, self.documents[1].id],
+            ],
             lambda document: "documentlink_field" in document
             and document["documentlink_field"] is not None
-            and set(document["documentlink_field"]) >= {1, 2},
+            and set(document["documentlink_field"])
+            >= {self.documents[0].id, self.documents[1].id},
         )
         # The order of IDs don't matter - this is the same as above.
         self._assert_query_match_predicate(
-            ["documentlink_field", "contains", [2, 1]],
+            [
+                "documentlink_field",
+                "contains",
+                [self.documents[1].id, self.documents[0].id],
+            ],
             lambda document: "documentlink_field" in document
             and document["documentlink_field"] is not None
-            and set(document["documentlink_field"]) >= {1, 2},
+            and set(document["documentlink_field"])
+            >= {self.documents[0].id, self.documents[1].id},
         )
 
     def test_document_link_contains_empty_set(self):

@@ -16,7 +16,7 @@
                     <div class="p-3">
                         <div class="row g-2">
                             @for (option of getCategoryOptions(category); track option.key) {
-                                <div [class]="option.type === ConfigOptionType.Header ? 'col-12 mt-3 mb-2' : 'col-12 col-md-6 col-lg-4'">
+                                <div [class]="(option.type === ConfigOptionType.Header || option.type === ConfigOptionType.Textarea) ? 'col-12 mt-3 mb-2' : 'col-12 col-md-6 col-lg-4'">
                                     @if (option.type === ConfigOptionType.Header) {
                                         <h5 class="border-bottom pb-2 mb-0">{{option.title}}</h5>
                                     } @else {
@@ -39,6 +39,7 @@
                                                         @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
                                                         @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
                                                         @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
+                                                        @case (ConfigOptionType.Textarea) { <pngx-input-textarea [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-textarea> }
                                                     }
                                                 </div>
                                                 @if (option.note) {

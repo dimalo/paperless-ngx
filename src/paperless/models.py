@@ -1,4 +1,5 @@
 from django.core.validators import FileExtensionValidator
+from django.core.validators import MaxValueValidator
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -455,6 +456,29 @@ class ApplicationConfiguration(AbstractSingletonModel):
     ollama_ocr_debug_thumbnail = models.BooleanField(
         verbose_name=_("Ollama OCR debug thumbnail"),
         null=True,
+    )
+
+    ai_system_prompt = models.TextField(
+        verbose_name=_("AI system prompt"),
+        null=True,
+        blank=True,
+    )
+
+    enable_auto_ai_enhancement = models.BooleanField(
+        verbose_name=_("Enable Auto AI Enhancement"),
+        null=True,
+    )
+
+    confidence_threshold = models.FloatField(
+        verbose_name=_("Confidence threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+
+    auto_create_threshold = models.FloatField(
+        verbose_name=_("Auto create threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
     )
 
     docling_force_ocr = models.BooleanField(

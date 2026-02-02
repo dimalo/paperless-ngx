@@ -160,6 +160,7 @@ from documents.permissions import set_permissions_for_object
 from documents.schema import generate_object_with_permissions_schema
 from documents.serialisers import AcknowledgeTasksViewSerializer
 from documents.serialisers import AIReviewQueueSerializer
+from documents.serialisers import AISuggestionHistorySerializer
 from documents.serialisers import BulkDownloadSerializer
 from documents.serialisers import BulkEditObjectsSerializer
 from documents.serialisers import BulkEditSerializer
@@ -1426,7 +1427,7 @@ class DocumentViewSet(
             )
 
         # Apply suggestions
-        apply_ai_suggestions(doc, review_item.suggestions)
+        apply_ai_suggestions(doc, review_item.suggestions, user=request.user)
 
         # Mark as applied
         review_item.status = AIReviewQueue.Status.APPLIED
@@ -1522,18 +1523,14 @@ class AIReviewQueueViewSet(ModelViewSet, PassUserMixin):
                     f"Insufficient permissions for document {item.document.id}",
                 )
 
-        # Approve items
-        count = review_items.update(
-            status=AIReviewQueue.Status.APPROVED,
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-        )
-
-        # TODO: Apply suggestions for each item
-        # for item in review_items:
-        #     apply_ai_suggestions(item.document, item.suggestions)
-        #     item.status = AIReviewQueue.Status.APPLIED
-        #     item.save()
+        # Apply suggestions for each item and mark as applied
+        count = review_items.count()
+        for item in review_items:
+            apply_ai_suggestions(item.document, item.suggestions, user=request.user)
+            item.status = AIReviewQueue.Status.APPLIED
+            item.reviewed_by = request.user
+            item.reviewed_at = timezone.now()
+            item.save()
 
         return Response({"detail": f"Approved {count} AI review items."})
 
@@ -1584,7 +1581,7 @@ class AISuggestionHistoryViewSet(ModelViewSet, PassUserMixin):
 
     model = AISuggestionHistory
     queryset = AISuggestionHistory.objects.all()
-    serializer_class = None  # TODO: Create serializer if needed
+    serializer_class = AISuggestionHistorySerializer
     pagination_class = StandardPagination
     permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
     filter_backends = (

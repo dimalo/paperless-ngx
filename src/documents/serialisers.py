@@ -51,6 +51,7 @@ from documents import bulk_edit
 from documents.data_models import DocumentSource
 from documents.filters import CustomFieldQueryParser
 from documents.models import AIReviewQueue
+from documents.models import AISuggestionHistory
 from documents.models import Correspondent
 from documents.models import CustomField
 from documents.models import CustomFieldInstance
@@ -2773,6 +2774,40 @@ class AIReviewQueueSerializer(OwnedObjectSerializer):
             "id",
             "created_at",
             "updated_at",
+        ]
+
+
+class AISuggestionHistorySerializer(OwnedObjectSerializer):
+    """
+    Serializer for AI suggestion history.
+
+    Handles serialization of applied AI suggestions for tracking and rollback.
+    """
+
+    document = serializers.PrimaryKeyRelatedField(read_only=True)
+    applied_by = BasicUserSerializer(read_only=True)
+    rolled_back_by = BasicUserSerializer(read_only=True)
+
+    class Meta:
+        model = AISuggestionHistory
+        fields = [
+            "id",
+            "document",
+            "applied_at",
+            "applied_by",
+            "applied_suggestions",
+            "confidence_scores",
+            "rolled_back",
+            "rolled_back_at",
+            "rolled_back_by",
+            "owner",
+            "permissions",
+            "user_can_change",
+        ]
+        read_only_fields = [
+            "id",
+            "applied_at",
+            "rolled_back_at",
         ]
 
 

@@ -409,6 +409,18 @@ class Document(SoftDeleteModel, ModelWithOwner):
     def created_date(self):
         return self.created
 
+    @property
+    def ai_review_queue(self):
+        # Use getattr to satisfy type checkers for reverse managers defined later
+        manager = getattr(self, "ai_review_queues", None)
+        return manager.filter(status="pending").first() if manager else None
+
+    @property
+    def ai_suggestion_history(self):
+        # Use getattr to satisfy type checkers for reverse managers defined later
+        manager = getattr(self, "ai_suggestion_histories", None)
+        return manager.first() if manager else None
+
     def add_nested_tags(self, tags):
         tag_ids = set()
         for tag in tags:
@@ -1653,7 +1665,7 @@ class AIReviewQueue(ModelWithOwner):
         ]
 
     def __str__(self):
-        return f"AI Review for {self.document.title} ({self.status})"
+        return f"AI Review for {self.document.title or self.document.filename} ({self.status})"
 
     def save(self, *args, **kwargs):
         if (
@@ -1692,6 +1704,8 @@ class AISuggestionHistory(ModelWithOwner):
 
     confidence_scores = models.JSONField(
         _("confidence scores"),
+        null=True,
+        blank=True,
         help_text=_(
             "JSON structure containing confidence scores for each applied suggestion",
         ),

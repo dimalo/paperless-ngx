@@ -44,6 +44,7 @@ export enum ConfigOptionType {
   Boolean = 'boolean',
   JSON = 'json',
   File = 'file',
+  Textarea = 'textarea',
   Password = 'password',
   Header = 'header',
 }
@@ -439,6 +440,13 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
+    key: 'ai_system_prompt',
+    title: $localize`System Prompt`,
+    type: ConfigOptionType.Textarea,
+    config_key: 'PAPERLESS_AI_SYSTEM_PROMPT',
+    category: ConfigCategory.AI,
+  },
+  {
     key: 'llm_backend',
     title: $localize`LLM Backend`,
     type: ConfigOptionType.Select,
@@ -681,6 +689,7 @@ export interface PaperlessConfig extends ObjectWithId {
   barcode_enable_tag: boolean
   barcode_tag_mapping: object
   ai_enabled: boolean
+  ai_system_prompt: string
   llm_embedding_backend: string
   llm_embedding_endpoint: string
   llm_embedding_api_key: string

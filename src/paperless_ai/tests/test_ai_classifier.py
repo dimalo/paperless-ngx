@@ -68,35 +68,40 @@ def mock_similar_documents():
 
 
 @pytest.mark.django_db
-@patch("paperless_ai.client.AIClient.run_llm_query")
 @override_settings(
     LLM_BACKEND="ollama",
     LLM_MODEL="some_model",
 )
-def test_get_ai_document_classification_success(mock_run_llm_query, mock_document):
-    mock_run_llm_query.return_value = {
-        "title": "Test Title",
-        "tags": ["test", "document"],
-        "correspondents": ["John Doe"],
-        "document_types": ["report"],
-        "storage_paths": ["Reports"],
-        "dates": ["2023-01-01"],
-    }
+def test_get_ai_document_classification_success(mock_document):
+    with patch("litellm.completion") as mock_completion:
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "title": "Test Title",
+                "tags": ["test", "document"],
+                "correspondents": ["John Doe"],
+                "document_types": ["report"],
+                "storage_paths": ["Reports"],
+                "dates": ["2023-01-01"],
+            },
+        )
+        mock_completion.return_value = mock_response
 
-    result = get_ai_document_classification(mock_document)
+        result = get_ai_document_classification(mock_document)
 
-    assert result["title"] == "Test Title"
-    assert result["tags"] == ["test", "document"]
-    assert result["correspondents"] == ["John Doe"]
-    assert result["document_types"] == ["report"]
-    assert result["storage_paths"] == ["Reports"]
-    assert result["dates"] == ["2023-01-01"]
+        assert result["title"] == "Test Title"
+        assert result["tags"] == ["test", "document"]
+        assert result["correspondents"] == ["John Doe"]
+        assert result["document_types"] == ["report"]
+        assert result["storage_paths"] == ["Reports"]
+        assert result["dates"] == ["2023-01-01"]
 
 
 @pytest.mark.django_db
-@patch("paperless_ai.client.AIClient.run_llm_query")
-def test_get_ai_document_classification_failure(mock_run_llm_query, mock_document):
-    mock_run_llm_query.side_effect = Exception("LLM query failed")
+@patch("litellm.completion")
+def test_get_ai_document_classification_failure(mock_completion, mock_document):
+    mock_completion.side_effect = Exception("LLM query failed")
 
     # assert raises an exception
     with pytest.raises(Exception):
@@ -104,7 +109,7 @@ def test_get_ai_document_classification_failure(mock_run_llm_query, mock_documen
 
 
 @pytest.mark.django_db
-@patch("paperless_ai.client.AIClient.run_llm_query")
+@patch("litellm.completion")
 @patch("paperless_ai.ai_classifier.build_prompt_with_rag")
 @override_settings(
     LLM_EMBEDDING_BACKEND="huggingface",
@@ -114,19 +119,31 @@ def test_get_ai_document_classification_failure(mock_run_llm_query, mock_documen
 )
 def test_use_rag_if_configured(
     mock_build_prompt_with_rag,
-    mock_run_llm_query,
+    mock_completion,
     mock_document,
 ):
     mock_build_prompt_with_rag.return_value = "Prompt with RAG"
-    mock_run_llm_query.return_value.text = json.dumps({})
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {
+            "title": "Test",
+            "tags": [],
+            "correspondents": [],
+            "document_types": [],
+            "storage_paths": [],
+            "dates": [],
+        },
+    )
+    mock_completion.return_value = mock_response
     get_ai_document_classification(mock_document)
     mock_build_prompt_with_rag.assert_called_once()
 
 
 @pytest.mark.django_db
-@patch("paperless_ai.client.AIClient.run_llm_query")
+@patch("litellm.completion")
 @patch("paperless_ai.ai_classifier.build_prompt_without_rag")
-@patch("paperless.config.AIConfig")
+@patch("paperless_ai.ai_classifier.AIConfig")
 @override_settings(
     LLM_BACKEND="ollama",
     LLM_MODEL="some_model",
@@ -134,12 +151,24 @@ def test_use_rag_if_configured(
 def test_use_without_rag_if_not_configured(
     mock_ai_config,
     mock_build_prompt_without_rag,
-    mock_run_llm_query,
+    mock_completion,
     mock_document,
 ):
-    mock_ai_config.llm_embedding_backend = None
+    mock_ai_config.return_value.llm_embedding_backend = None
     mock_build_prompt_without_rag.return_value = "Prompt without RAG"
-    mock_run_llm_query.return_value.text = json.dumps({})
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(
+        {
+            "title": "Test",
+            "tags": [],
+            "correspondents": [],
+            "document_types": [],
+            "storage_paths": [],
+            "dates": [],
+        },
+    )
+    mock_completion.return_value = mock_response
     get_ai_document_classification(mock_document)
     mock_build_prompt_without_rag.assert_called_once()
 

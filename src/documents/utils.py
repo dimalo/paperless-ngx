@@ -47,12 +47,18 @@ def copy_basic_file_stats(source: Path | str, dest: Path | str) -> None:
         pass
 
 
-def apply_ai_suggestions(document: "Document", suggestions: dict):
+def apply_ai_suggestions(
+    document: "Document",
+    suggestions: dict,
+    user=None,
+    confidence_scores=None,
+):
     """
-    Apply approved AI suggestions to a document.
+    Apply approved AI suggestions to a document and record the history.
 
     Reuses the existing auto-matching logic from the enhancement task.
     """
+    from documents.models import AISuggestionHistory
     from documents.tasks import auto_match_or_create_correspondents
     from documents.tasks import auto_match_or_create_document_types
     from documents.tasks import auto_match_or_create_storage_paths
@@ -61,11 +67,15 @@ def apply_ai_suggestions(document: "Document", suggestions: dict):
     ai_config = AIConfig()
     auto_create_threshold = ai_config.auto_create_threshold
 
+    applied_suggestions = {}
+
     # Apply title
     title_suggestion = suggestions.get("title")
     if title_suggestion and isinstance(title_suggestion, dict):
-        document.title = title_suggestion.get("value")
-        document.save()
+        new_title = title_suggestion.get("value")
+        if new_title and document.title != new_title:
+            document.title = new_title
+            applied_suggestions["title"] = title_suggestion
 
     # Apply tags
     tag_suggestions = suggestions.get("tags", [])
@@ -75,7 +85,11 @@ def apply_ai_suggestions(document: "Document", suggestions: dict):
         auto_create_threshold,
     )
     if matched_tags:
-        document.tags.add(*matched_tags)
+        current_tags = set(document.tags.all())
+        new_tags = [tag for tag in matched_tags if tag not in current_tags]
+        if new_tags:
+            document.tags.add(*new_tags)
+            applied_suggestions["tags"] = [tag.name for tag in new_tags]
 
     # Apply correspondent
     correspondent_suggestions = suggestions.get("correspondents", [])
@@ -86,6 +100,7 @@ def apply_ai_suggestions(document: "Document", suggestions: dict):
     )
     if matched_correspondents and not document.correspondent:
         document.correspondent = matched_correspondents[0]
+        applied_suggestions["correspondents"] = [matched_correspondents[0].name]
 
     # Apply document type
     document_type_suggestions = suggestions.get("document_types", [])
@@ -96,6 +111,7 @@ def apply_ai_suggestions(document: "Document", suggestions: dict):
     )
     if matched_document_types and not document.document_type:
         document.document_type = matched_document_types[0]
+        applied_suggestions["document_types"] = [matched_document_types[0].name]
 
     # Apply storage path
     storage_path_suggestions = suggestions.get("storage_paths", [])
@@ -106,9 +122,24 @@ def apply_ai_suggestions(document: "Document", suggestions: dict):
     )
     if matched_storage_paths and not document.storage_path:
         document.storage_path = matched_storage_paths[0]
+        applied_suggestions["storage_paths"] = [matched_storage_paths[0].name]
 
-    # Save the document
-    document.save()
+    # Save the document if anything changed
+    if applied_suggestions:
+        document.save()
+
+        # Create history record
+        AISuggestionHistory.objects.create(
+            document=document,
+            applied_suggestions=applied_suggestions,
+            applied_by=user,
+            owner=document.owner,
+            confidence_scores=confidence_scores,
+        )
+
+    return applied_suggestions
+
+    return applied_suggestions
 
 
 def rollback_ai_suggestions(history_id: int, user):

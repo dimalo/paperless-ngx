@@ -229,6 +229,7 @@ class AIConfig(BaseConfig):
     llm_api_key: str | None = dataclasses.field(init=False)
     llm_endpoint: str | None = dataclasses.field(init=False)
     llm_timeout: int | None = dataclasses.field(init=False)
+    ai_system_prompt: str | None = dataclasses.field(init=False)
     enable_auto_ai_enhancement: bool = dataclasses.field(init=False)
     confidence_threshold: float = dataclasses.field(init=False)
     auto_create_threshold: float = dataclasses.field(init=False)
@@ -342,21 +343,54 @@ class AIConfig(BaseConfig):
         )
 
         # Auto-enhancement settings
+        self.ai_system_prompt = getattr(
+            app_config,
+            "ai_system_prompt",
+            None,
+        ) or getattr(settings, "PAPERLESS_AI_SYSTEM_PROMPT", None)
+
         self.enable_auto_ai_enhancement = getattr(
             app_config,
             "enable_auto_ai_enhancement",
             None,
-        ) or getattr(settings, "PAPERLESS_AI_AUTO_ASSIGN", False)
+        )
+        if self.enable_auto_ai_enhancement is None:
+            self.enable_auto_ai_enhancement = bool(
+                getattr(
+                    settings,
+                    "PAPERLESS_AI_AUTO_ASSIGN",
+                    False,
+                ),
+            )
+
         self.confidence_threshold = getattr(
             app_config,
             "confidence_threshold",
             None,
-        ) or getattr(settings, "PAPERLESS_AI_CONFIDENCE_THRESHOLD", 0.7)
+        )
+        if self.confidence_threshold is None:
+            self.confidence_threshold = float(
+                getattr(
+                    settings,
+                    "PAPERLESS_AI_CONFIDENCE_THRESHOLD",
+                    0.7,
+                ),
+            )
+
         self.auto_create_threshold = getattr(
             app_config,
             "auto_create_threshold",
             None,
-        ) or getattr(settings, "PAPERLESS_AI_AUTO_CREATE_THRESHOLD", 0.8)
+        )
+        if self.auto_create_threshold is None:
+            self.auto_create_threshold = float(
+                getattr(
+                    settings,
+                    "PAPERLESS_AI_AUTO_CREATE_THRESHOLD",
+                    0.8,
+                ),
+            )
+
         self.force_ai_update = getattr(app_config, "force_ai_update", None) or getattr(
             settings,
             "PAPERLESS_AI_FORCE_UPDATE",

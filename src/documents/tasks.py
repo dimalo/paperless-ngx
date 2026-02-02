@@ -711,7 +711,22 @@ def auto_enhance_document(document_pk: int):
                 raise AIFailureException(f"AI service unavailable: {e}") from e
 
         # Check if any suggestion requires review (0.5 <= confidence < 0.7)
+        # OR if document already has metadata and we are not forcing update
+        has_metadata = (
+            document.title != document.filename
+            or document.tags.exists()
+            or document.correspondent is not None
+            or document.document_type is not None
+            or document.storage_path is not None
+        )
+
         needs_review_flag = needs_review(ai_result)
+
+        if not ai_config.force_ai_update and has_metadata:
+            logger.info(
+                f"Document {document_pk} already has metadata, forcing AI suggestions to review queue",
+            )
+            needs_review_flag = True
 
         if needs_review_flag:
             # Create review queue item

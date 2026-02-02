@@ -11,33 +11,41 @@ from paperless_ai.indexing import truncate_content
 
 logger = logging.getLogger("paperless_ai.rag_classifier")
 
+AI_MAX_CONTENT_CHARS = 10000
+
+
+DEFAULT_SYSTEM_PROMPT = """
+You are a professional document classifier. Your task is to extract metadata from the document below.
+
+Output a single, strictly valid JSON object with these fields:
+- title: (string) A concise, descriptive title.
+- title_confidence: (float 0.0-1.0)
+- tags: (list of strings) Keywords or categories.
+- tags_confidence: (object) Mapping each tag to its 0.0-1.0 confidence score.
+- correspondents: (list of strings) People or organizations.
+- correspondents_confidence: (object) Mapping each correspondent to its 0.0-1.0 confidence score.
+- document_types: (list of strings) e.g. "Invoice", "Letter".
+- document_types_confidence: (object) Mapping each type to its 0.0-1.0 confidence score.
+- storage_paths: (list of strings) Suggested folder paths.
+- storage_paths_confidence: (object) Mapping each path to its 0.0-1.0 confidence score.
+- dates: (list of strings) Up to 3 dates found in YYYY-MM-DD format.
+
+Document Filename: {filename}
+Document Content:
+{content}
+
+Respond ONLY with the JSON object.
+""".strip()
+
 
 def build_prompt_without_rag(document: Document) -> str:
+    ai_config = AIConfig()
     filename = document.filename or ""
-    content = truncate_content(document.content[:4000] or "")
+    content = truncate_content(document.content[:AI_MAX_CONTENT_CHARS] or "")
 
-    return f"""
-    You are a professional document classifier. Your task is to extract metadata from the document below.
+    system_prompt = ai_config.ai_system_prompt or DEFAULT_SYSTEM_PROMPT
 
-    Output a single, strictly valid JSON object with these fields:
-    - title: (string) A concise, descriptive title.
-    - title_confidence: (float 0.0-1.0)
-    - tags: (list of strings) Keywords or categories.
-    - tags_confidence: (object) Mapping each tag to its 0.0-1.0 confidence score.
-    - correspondents: (list of strings) People or organizations.
-    - correspondents_confidence: (object) Mapping each correspondent to its 0.0-1.0 confidence score.
-    - document_types: (list of strings) e.g. "Invoice", "Letter".
-    - document_types_confidence: (object) Mapping each type to its 0.0-1.0 confidence score.
-    - storage_paths: (list of strings) Suggested folder paths.
-    - storage_paths_confidence: (object) Mapping each path to its 0.0-1.0 confidence score.
-    - dates: (list of strings) Up to 3 dates found in YYYY-MM-DD format.
-
-    Document Filename: {filename}
-    Document Content:
-    {content}
-
-    Respond ONLY with the JSON object.
-    """.strip()
+    return system_prompt.format(filename=filename, content=content)
 
 
 def build_prompt_with_rag(document: Document, user: User | None = None) -> str:

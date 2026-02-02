@@ -1,7 +1,9 @@
 import hashlib
 import json
+import os
 import shutil
 import tempfile
+import unittest
 from io import StringIO
 from pathlib import Path
 from unittest import mock
@@ -133,6 +135,24 @@ class TestExportImport(
 
         super().setUp()
 
+        # Explicitly copy and rename files to match document IDs and filenames
+        for i, doc in enumerate([self.d1, self.d2, self.d3, self.d4], start=1):
+            # Originals
+            shutil.copy2(
+                self.SAMPLE_DIR / "documents" / "originals" / f"{i:07d}.pdf",
+                self.dirs.originals_dir / doc.filename,
+            )
+            # Thumbnails - match PK
+            shutil.copy2(
+                self.SAMPLE_DIR / "documents" / "thumbnails" / f"{i:07d}.webp",
+                self.dirs.thumbnail_dir / f"{doc.pk:07d}.webp",
+            )
+        # Archive for d1
+        shutil.copy2(
+            self.SAMPLE_DIR / "documents" / "archive" / "0000001.pdf",
+            self.dirs.archive_dir / self.d1.archive_filename,
+        )
+
     def _get_document_from_manifest(self, manifest, id):
         f = list(
             filter(
@@ -187,12 +207,6 @@ class TestExportImport(
         return manifest
 
     def test_exporter(self, *, use_filename_format=False):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         num_permission_objects = Permission.objects.count()
 
         manifest = self._do_export(use_filename_format=use_filename_format)
@@ -285,24 +299,12 @@ class TestExportImport(
             self.assertEqual(len(messages), 0)
 
     def test_exporter_with_filename_format(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         with override_settings(
             FILENAME_FORMAT="{created_year}/{correspondent}/{title}",
         ):
             self.test_exporter(use_filename_format=True)
 
     def test_update_export_changed_time(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         self._do_export()
         self.assertIsFile(self.target / "manifest.json")
 
@@ -336,12 +338,6 @@ class TestExportImport(
         self.assertEqual(st_mtime_3, st_mtime_4)
 
     def test_update_export_changed_checksum(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         self._do_export()
 
         self.assertIsFile(self.target / "manifest.json")
@@ -366,12 +362,6 @@ class TestExportImport(
         self.assertIsFile(self.target / "manifest.json")
 
     def test_update_export_deleted_document(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         manifest = self._do_export()
 
         self.assertTrue(len(manifest), 7)
@@ -401,12 +391,6 @@ class TestExportImport(
 
     @override_settings(FILENAME_FORMAT="{title}/{correspondent}")
     def test_update_export_changed_location(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         self._do_export(use_filename_format=True)
         self.assertIsFile(self.target / "wow1" / "c.pdf")
 
@@ -446,12 +430,6 @@ class TestExportImport(
             - Zipfile is created
             - Zipfile contains exported files
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         args = ["document_exporter", self.target, "--zip"]
 
         call_command(*args)
@@ -479,12 +457,6 @@ class TestExportImport(
             - Zipfile is created
             - Zipfile contains exported files
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         args = ["document_exporter", self.target, "--zip", "--use-filename-format"]
 
         with override_settings(
@@ -519,12 +491,6 @@ class TestExportImport(
             - Zipfile contains exported files
             - The existing file and directory in target are removed
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         # Create stuff in target directory
         existing_file = self.target / "test.txt"
         existing_file.touch()
@@ -585,6 +551,7 @@ class TestExportImport(
 
             self.assertEqual("That path isn't a directory", str(e.exception))
 
+    @unittest.skipIf(os.getuid() == 0, "Test is not applicable when running as root")
     def test_export_target_not_writable(self):
         """
         GIVEN:
@@ -617,12 +584,6 @@ class TestExportImport(
             - Manifest.json doesn't contain information about archive files
             - Documents can be imported again
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         manifest = self._do_export()
         has_archive = False
         for element in manifest:
@@ -658,12 +619,6 @@ class TestExportImport(
             - Manifest.json doesn't contain information about thumbnails
             - Documents can be imported again
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         manifest = self._do_export()
         has_thumbnail = False
         for element in manifest:
@@ -701,12 +656,6 @@ class TestExportImport(
             - Main manifest.json file doesn't contain information about documents
             - Documents can be imported again
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         manifest = self._do_export(split_manifest=True)
         has_document = False
         for element in manifest:
@@ -732,12 +681,6 @@ class TestExportImport(
         THEN:
             - Documents can be imported again
         """
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         self._do_export(use_folder_prefix=True)
 
         with paperless_environment():
@@ -756,13 +699,6 @@ class TestExportImport(
         THEN:
             - ContentType & Permission objects are not deleted, db transaction rolled back
         """
-
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         num_content_type_objects = ContentType.objects.count()
         num_permission_objects = Permission.objects.count()
 
@@ -792,12 +728,6 @@ class TestExportImport(
             self.assertEqual(Permission.objects.count(), num_permission_objects + 1)
 
     def test_exporter_with_auditlog_disabled(self):
-        shutil.rmtree(Path(self.dirs.media_dir) / "documents")
-        shutil.copytree(
-            Path(__file__).parent / "samples" / "documents",
-            Path(self.dirs.media_dir) / "documents",
-        )
-
         with override_settings(
             AUDIT_LOG_ENABLED=False,
         ):

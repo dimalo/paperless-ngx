@@ -10,6 +10,7 @@ from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 
 from documents.models import Tag
+from paperless import settings as paperless_settings
 from paperless.db_cache import invalidate_db_cache
 from paperless.settings import _parse_cachalot_settings
 from paperless.settings import _parse_caches
@@ -27,9 +28,19 @@ def test_all_redis_caches_have_same_custom_prefix(monkeypatch):
     assert caches["read-cache"]["KEY_PREFIX"] == "test_a_custom_key_prefix"
     assert caches["default"]["KEY_PREFIX"] == "test_a_custom_key_prefix"
 
+    def test_cachalot_default_settings(self, monkeypatch):
+        monkeypatch.setattr(
+            paperless_settings,
+            "_CHANNELS_REDIS_URL",
+            "redis://localhost:6379",
+        )
+        new_cachalot = paperless_settings.cachalot_settings.copy()
+        new_cachalot["CACHALOT_REDIS_URL"] = "redis://localhost:6379"
+        monkeypatch.setattr(paperless_settings, "cachalot_settings", new_cachalot)
 
-class TestDbCacheSettings:
-    def test_cachalot_default_settings(self):
+        monkeypatch.delenv("PAPERLESS_REDIS", raising=False)
+        monkeypatch.delenv("PAPERLESS_READ_CACHE_REDIS_URL", raising=False)
+
         # Cachalot must be installed even if disabled,
         # so the cache can be invalidated anytime
         assert "cachalot" not in settings.INSTALLED_APPS
@@ -105,7 +116,7 @@ class TestDbCacheSettings:
     CACHALOT_ENABLED=True,
     CACHALOT_TIMEOUT=1,
 )
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db(transaction=True, databases=["default", "sqlite"])
 def test_cache_hit_when_enabled():
     cachalot_settings.reload()
 
@@ -140,7 +151,7 @@ def test_cache_hit_when_enabled():
     invalidate_db_cache()
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db(transaction=True, databases=["default", "sqlite"])
 def test_cache_is_disabled_by_default():
     cachalot_settings.reload()
     # Invalidate the cache just in case

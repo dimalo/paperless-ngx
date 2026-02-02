@@ -1,5 +1,5 @@
-from factory import Faker
 from factory.django import DjangoModelFactory
+from factory.faker import Faker
 
 from documents.models import AIReviewQueue
 from documents.models import AISuggestionHistory
@@ -19,6 +19,7 @@ class DocumentFactory(DjangoModelFactory):
         model = Document
 
     checksum = Faker("md5")
+    title = Faker("sentence", nb_words=4)
 
 
 class AIReviewQueueFactory(DjangoModelFactory):
@@ -27,7 +28,7 @@ class AIReviewQueueFactory(DjangoModelFactory):
 
     suggestions = {
         "title": {"value": "Test Title", "confidence": 0.6},
-        "tags": [{"name": "test-tag", "confidence": 0.6}],
+        "tags": [{"value": "test-tag", "confidence": 0.6}],
     }
     confidence_scores = {
         "title": 0.6,

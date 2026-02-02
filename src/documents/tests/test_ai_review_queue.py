@@ -27,7 +27,7 @@ class AIReviewQueueFactory:
         if suggestions is None:
             suggestions = {
                 "title": {"value": "Test Title", "confidence": 0.6},
-                "tags": [{"name": "test-tag", "confidence": 0.6}],
+                "tags": [{"value": "test-tag", "confidence": 0.6}],
             }
         if confidence_scores is None:
             confidence_scores = {
@@ -167,8 +167,8 @@ class AIReviewQueueAPITestCase(APITestCase):
         item1.refresh_from_db()
         item2.refresh_from_db()
 
-        self.assertEqual(item1.status, AIReviewQueue.Status.APPROVED)
-        self.assertEqual(item2.status, AIReviewQueue.Status.APPROVED)
+        self.assertEqual(item1.status, AIReviewQueue.Status.APPLIED)
+        self.assertEqual(item2.status, AIReviewQueue.Status.APPLIED)
         self.assertEqual(item1.reviewed_by, self.user)
         self.assertEqual(item2.reviewed_by, self.user)
         self.assertIsNotNone(item1.reviewed_at)
