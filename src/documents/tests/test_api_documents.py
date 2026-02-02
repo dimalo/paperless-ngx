@@ -131,6 +131,10 @@ class TestDocumentApi(DirectoriesMixin, DocumentConsumeDelayMixin, APITestCase):
         self.assertIn("content", results_full[0])
         self.assertIn("id", results_full[0])
 
+        # Content length is used internally for performance reasons.
+        # No need to expose this field.
+        self.assertNotIn("content_length", results_full[0])
+
         response = self.client.get("/api/documents/?fields=id", format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data["results"]
@@ -1218,6 +1222,17 @@ class TestDocumentApi(DirectoriesMixin, DocumentConsumeDelayMixin, APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_upload_insufficient_permissions(self):
+        self.client.force_authenticate(user=User.objects.create_user("testuser2"))
+
+        with (Path(__file__).parent / "samples" / "simple.pdf").open("rb") as f:
+            response = self.client.post(
+                "/api/documents/post_document/",
+                {"document": f},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_upload_empty_metadata(self):
         self.consume_file_mock.return_value = celery.result.AsyncResult(

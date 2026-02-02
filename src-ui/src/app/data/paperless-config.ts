@@ -425,6 +425,13 @@ export const PaperlessConfigOptions: ConfigOption[] = [
   },
   // AI Settings - Global Enable Switch (no header)
   {
+    key: 'barcode_tag_split',
+    title: $localize`Split on Tag Barcodes`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_CONSUMER_TAG_BARCODE_SPLIT',
+    category: ConfigCategory.Barcode,
+  },
+  {
     key: 'ai_enabled',
     title: $localize`AI Enabled`,
     type: ConfigOptionType.Boolean,
@@ -688,6 +695,7 @@ export interface PaperlessConfig extends ObjectWithId {
   barcode_max_pages: number
   barcode_enable_tag: boolean
   barcode_tag_mapping: object
+  barcode_tag_split: boolean
   ai_enabled: boolean
   ai_system_prompt: string
   llm_embedding_backend: string
