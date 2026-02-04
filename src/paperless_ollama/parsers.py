@@ -215,8 +215,11 @@ class OllamaDocumentParser(ImageDocumentParser):
         Resize image to 1280x1280 for DeepSeek-OCR model.
         Returns: (resized_image_path, original_width, original_height)
         """
-        # Only resize if using deepseek-ocr model
-        if "deepseek-ocr" not in self.settings.model.lower():
+        model_lower = self.settings.model.lower()
+
+        # Only DeepSeek-OCR needs special resizing to 1280x1280
+        # GLM-OCR and other models handle various sizes natively
+        if "deepseek-ocr" not in model_lower:
             with Image.open(image_path) as img:
                 return image_path, img.width, img.height
 
@@ -284,6 +287,9 @@ class OllamaDocumentParser(ImageDocumentParser):
                     "Maintain the original layout and formatting where possible. "
                     "If the image contains multiple columns or tables, preserve the logical reading order."
                 )
+            elif "glm-ocr" in self.settings.model.lower():
+                # GLM-OCR optimized prompt for document text extraction
+                prompt = "Text Recognition:"
             else:
                 prompt = "OCR this image. Extract all text content."
 
@@ -601,6 +607,9 @@ class OllamaDocumentParser(ImageDocumentParser):
                 model_lower = self.settings.model.lower()
                 if "deepseek-ocr" in model_lower:
                     scale_to = 1280
+                elif "glm-ocr" in model_lower:
+                    # GLM-OCR handles various sizes natively, use default 150 DPI
+                    dpi = 150
                 elif "qwen" in model_lower:
                     # Qwen models prefer dimensions to be multiples of 28
                     # We target roughly 120 DPI (~1M pixels)

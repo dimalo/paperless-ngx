@@ -1024,7 +1024,7 @@ Set `PAPERLESS_OCR_ENGINE=docling` to use this backend.
 
 ### Ollama OCR Backend
 
-Paperless can use Ollama as an OCR backend using the deepseek-ocr model.
+Paperless can use Ollama as an OCR backend using vision models like deepseek-ocr or glm-ocr.
 
 #### Setup
 
@@ -1035,10 +1035,14 @@ Paperless can use Ollama as an OCR backend using the deepseek-ocr model.
     curl -fsSL https://ollama.ai/install.sh | sh
     ```
 
-2. Pull the deepseek-ocr model:
+2. Pull an OCR model (choose one):
 
     ```bash
+    # Option 1: DeepSeek OCR (default)
     ollama pull deepseek-ocr
+
+    # Option 2: GLM OCR (lightweight, fast)
+    ollama pull glm-ocr
     ```
 
 3. Start Ollama service:
@@ -1057,9 +1061,11 @@ Paperless can use Ollama as an OCR backend using the deepseek-ocr model.
 
 #### [`PAPERLESS_OLLAMA_MODEL=<model>`](#PAPERLESS_OLLAMA_MODEL) {#PAPERLESS_OLLAMA_MODEL}
 
-: The model name to use.
+: The model name to use. Supported models:
 
-    Defaults to `deepseek-ocr`.
+    - `deepseek-ocr` (default) - High accuracy OCR with bounding box coordinates
+    - `glm-ocr` - Lightweight (0.9B params), fast, good for documents and tables
+    - Other vision models (e.g., `llava`, `llama3.2-vision`) may work but are not optimized
 
 #### [`PAPERLESS_OLLAMA_TIMEOUT=<int>`](#PAPERLESS_OLLAMA_TIMEOUT) {#PAPERLESS_OLLAMA_TIMEOUT}
 

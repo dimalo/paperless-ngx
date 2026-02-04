@@ -203,3 +203,67 @@ class TestOllamaParser(DirectoriesMixin, TestCase):
             # Check messages structure
             messages = call_args[1]["messages"]
             self.assertEqual(messages[0]["role"], "user")
+
+    def test_glm_ocr_model_detection(self):
+        """
+        Test that GLM-OCR model is detected and uses correct prompt.
+        """
+        with self.settings(OLLAMA_MODEL="glm-ocr"):
+            parser = OllamaDocumentParser(uuid.uuid4())
+            self.assertIn("glm-ocr", parser.settings.model.lower())
+
+    def test_glm_ocr_pdf_scaling(self):
+        """
+        Test that GLM-OCR uses default DPI for PDF conversion.
+        """
+        with self.settings(OLLAMA_MODEL="glm-ocr"):
+            parser = OllamaDocumentParser(uuid.uuid4())
+
+            with (
+                mock.patch("litellm.completion") as mock_completion,
+                mock.patch.object(
+                    parser,
+                    "_convert_pdf_pages_to_images",
+                    return_value=[Path("dummy.png")],
+                ) as mock_convert,
+            ):
+                mock_response = mock.Mock()
+                mock_response.choices = [
+                    mock.Mock(message=mock.Mock(content="Page 1 text.")),
+                ]
+                mock_completion.return_value = mock_response
+
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    pdf_path = Path(tmp.name)
+                    tmp.write(b"dummy pdf data")
+
+                try:
+                    with (
+                        mock.patch.object(
+                            parser,
+                            "_prepare_message",
+                            return_value=([{"role": "user"}], 800, 600),
+                        ),
+                        mock.patch.object(
+                            parser,
+                            "_call_ollama_api_batch",
+                            return_value=["Page 1 text."],
+                        ),
+                        mock.patch.object(
+                            Path,
+                            "exists",
+                            return_value=True,
+                        ),
+                    ):
+                        parser.parse(pdf_path, "application/pdf")
+
+                    # GLM-OCR should use default 150 DPI without special scaling
+                    mock_convert.assert_called_once_with(
+                        pdf_path,
+                        scale_to=None,
+                        scale_to_x=None,
+                        scale_to_y=None,
+                        dpi=150,
+                    )
+                finally:
+                    pdf_path.unlink(missing_ok=True)
