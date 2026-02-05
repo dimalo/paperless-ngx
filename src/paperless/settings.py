@@ -1461,3 +1461,8 @@ LLM_BACKEND = os.getenv("PAPERLESS_AI_LLM_BACKEND")  # "ollama" or "openai"
 LLM_MODEL = os.getenv("PAPERLESS_AI_LLM_MODEL")
 LLM_API_KEY = os.getenv("PAPERLESS_AI_LLM_API_KEY")
 LLM_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_ENDPOINT")
+
+################################################################################
+# OCR Engine Settings                                                          #
+################################################################################
+OCR_ENGINE_PRIORITY = os.getenv("PAPERLESS_OCR_ENGINE_PRIORITY", "tesseract")

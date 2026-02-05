@@ -30,6 +30,7 @@ class DocumentMetadataOverrides:
     change_users: list[int] | None = None
     change_groups: list[int] | None = None
     custom_fields: dict | None = None
+    ocr_engine: str | None = None
     skip_asn_if_exists: bool = False
 
     def update(self, other: "DocumentMetadataOverrides") -> "DocumentMetadataOverrides":
@@ -50,6 +51,8 @@ class DocumentMetadataOverrides:
             self.storage_path_id = other.storage_path_id
         if other.owner_id is not None:
             self.owner_id = other.owner_id
+        if other.ocr_engine is not None:
+            self.ocr_engine = other.ocr_engine
         if other.skip_asn_if_exists:
             self.skip_asn_if_exists = True
 

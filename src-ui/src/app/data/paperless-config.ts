@@ -45,6 +45,7 @@ export enum ConfigOptionType {
   JSON = 'json',
   File = 'file',
   Password = 'password',
+  DragDropSelect = 'drag-drop-select',
 }
 
 export const ConfigCategory = {
@@ -178,6 +179,18 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     title: $localize`OCR Arguments`,
     type: ConfigOptionType.JSON,
     config_key: 'PAPERLESS_OCR_USER_ARGS',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_engine_priority',
+    title: $localize`OCR Engine Priority`,
+    type: ConfigOptionType.DragDropSelect,
+    choices: [
+      { id: 'tesseract', name: $localize`Tesseract` },
+      { id: 'docling', name: $localize`Docling` },
+      { id: 'ollama', name: $localize`Ollama` },
+    ],
+    config_key: 'PAPERLESS_OCR_ENGINE_PRIORITY',
     category: ConfigCategory.OCR,
   },
   {
@@ -346,6 +359,7 @@ export interface PaperlessConfig extends ObjectWithId {
   max_image_pixels: number
   color_conversion_strategy: ColorConvertConfig
   user_args: object
+  ocr_engine_priority: string
   app_logo: string
   app_title: string
   barcodes_enabled: boolean

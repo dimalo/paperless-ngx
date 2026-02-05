@@ -342,6 +342,7 @@ class ConsumerPlugin(
             # Based on the mime type, get the parser for that type
             parser_class: type[DocumentParser] | None = get_parser_class_for_mime_type(
                 mime_type,
+                preferred_engine=self.metadata.ocr_engine,
             )
             if not parser_class:
                 tempdir.cleanup()

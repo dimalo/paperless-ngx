@@ -479,6 +479,11 @@ export class WorkflowEditDialogComponent
   mailRules: MailRule[]
   customFields: CustomField[]
   dateCustomFields: CustomField[]
+  ocrEngineOptions = [
+    { id: 'tesseract', name: $localize`Tesseract` },
+    { id: 'docling', name: $localize`Docling` },
+    { id: 'ollama', name: $localize`Ollama` },
+  ]
 
   expandedItem: number = null
 
@@ -1156,6 +1161,7 @@ export class WorkflowEditDialogComponent
         assign_document_type: new FormControl(action.assign_document_type),
         assign_correspondent: new FormControl(action.assign_correspondent),
         assign_storage_path: new FormControl(action.assign_storage_path),
+        assign_ocr_engine: new FormControl(action.assign_ocr_engine),
         assign_view_users: new FormControl(action.assign_view_users),
         assign_view_groups: new FormControl(action.assign_view_groups),
         assign_change_users: new FormControl(action.assign_change_users),
@@ -1308,6 +1314,7 @@ export class WorkflowEditDialogComponent
       assign_document_type: null,
       assign_correspondent: null,
       assign_storage_path: null,
+      assign_ocr_engine: null,
       assign_owner: null,
       assign_view_users: [],
       assign_view_groups: [],

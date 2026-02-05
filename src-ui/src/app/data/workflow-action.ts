@@ -58,8 +58,9 @@ export interface WorkflowAction extends ObjectWithId {
   assign_change_groups?: number[] // [Group.id]
 
   assign_custom_fields?: number[] // [CustomField.id]
-
   assign_custom_fields_values?: object
+
+  assign_ocr_engine?: string
 
   remove_tags?: number[] // Tag.id
 

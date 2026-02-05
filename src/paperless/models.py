@@ -182,6 +182,22 @@ class ApplicationConfiguration(AbstractSingletonModel):
     )
 
     """
+    OCR engine settings
+    """
+
+    ocr_engine_priority = models.CharField(
+        verbose_name=_("OCR engine priority"),
+        null=True,
+        blank=True,
+        max_length=256,
+        help_text=_(
+            "Ordered list of OCR engines to try, comma-separated. "
+            "First engine in the list has the highest priority. "
+            "Example: 'docling,tesseract,ollama'",
+        ),
+    )
+
+    """
     Settings for the Paperless application
     """
 

@@ -1470,6 +1470,17 @@ class WorkflowAction(models.Model):
         verbose_name=_("assign this owner"),
     )
 
+    assign_ocr_engine = models.CharField(
+        verbose_name=_("assign OCR engine"),
+        null=True,
+        blank=True,
+        max_length=32,
+        help_text=_(
+            "Override the OCR engine for this document. "
+            "Available engines: tesseract, docling, ollama (if installed).",
+        ),
+    )
+
     assign_view_users = models.ManyToManyField(
         User,
         blank=True,

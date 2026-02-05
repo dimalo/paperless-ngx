@@ -27,6 +27,7 @@ import {
 import { ConfigService } from 'src/app/services/config.service'
 import { SettingsService } from 'src/app/services/settings.service'
 import { ToastService } from 'src/app/services/toast.service'
+import { DragDropSelectComponent } from '../../common/input/drag-drop-select/drag-drop-select.component'
 import { FileComponent } from '../../common/input/file/file.component'
 import { NumberComponent } from '../../common/input/number/number.component'
 import { PasswordComponent } from '../../common/input/password/password.component'
@@ -43,6 +44,7 @@ import { LoadingComponentWithPermissions } from '../../loading-component/loading
   imports: [
     PageHeaderComponent,
     SelectComponent,
+    DragDropSelectComponent,
     SwitchComponent,
     TextComponent,
     NumberComponent,
@@ -140,8 +142,18 @@ export class ConfigComponent
   }
 
   private initialize(config: PaperlessConfig) {
+    const formConfig = { ...config }
+    if (config.ocr_engine_priority) {
+      formConfig.ocr_engine_priority = config.ocr_engine_priority
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0) as any
+    } else {
+      formConfig.ocr_engine_priority = [] as any
+    }
+
     if (!this.store) {
-      this.store = new BehaviorSubject(config)
+      this.store = new BehaviorSubject(formConfig)
 
       this.store
         .asObservable()
@@ -152,7 +164,7 @@ export class ConfigComponent
 
       this.isDirty$ = dirtyCheck(this.configForm, this.store.asObservable())
     }
-    this.configForm.patchValue(config)
+    this.configForm.patchValue(formConfig)
 
     this.initialConfig = config
   }
@@ -163,8 +175,12 @@ export class ConfigComponent
 
   public saveConfig() {
     this.loading = true
+    const formValue = { ...this.configForm.value }
+    if (Array.isArray(formValue.ocr_engine_priority)) {
+      formValue.ocr_engine_priority = formValue.ocr_engine_priority.join(',')
+    }
     this.configService
-      .saveConfig(this.configForm.value as PaperlessConfig)
+      .saveConfig(formValue as PaperlessConfig)
       .pipe(takeUntil(this.unsubscribeNotifier), first())
       .subscribe({
         next: (config) => {
@@ -185,7 +201,7 @@ export class ConfigComponent
   }
 
   public discardChanges() {
-    this.configForm.reset(this.initialConfig)
+    this.initialize(this.initialConfig)
   }
 
   public uploadFile(file: File, key: string) {

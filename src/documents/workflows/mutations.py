@@ -44,6 +44,11 @@ def apply_assignment_to_document(
     if action.assign_owner:
         document.owner = action.assign_owner
 
+    if action.assign_ocr_engine:
+        # Note: This is mainly for re-processing in the future,
+        # but we include it for consistency.
+        pass
+
     if action.assign_title:
         try:
             document.title = parse_w_workflow_placeholders(
@@ -146,6 +151,9 @@ def apply_assignment_to_overrides(
 
     if action.assign_owner:
         overrides.owner_id = action.assign_owner.pk
+
+    if action.assign_ocr_engine:
+        overrides.ocr_engine = action.assign_ocr_engine
 
     if action.assign_title:
         overrides.title = action.assign_title
