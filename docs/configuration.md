@@ -734,8 +734,23 @@ If both the [PAPERLESS_ACCOUNT_DEFAULT_GROUPS](#PAPERLESS_ACCOUNT_DEFAULT_GROUPS
 
 ## OCR settings {#ocr}
 
+Paperless uses an **OCR Broker** to select the best available OCR engine for each document. You can configure a global priority list of engines, which can be further overridden on a per-document basis using [Workflows](usage.md#workflows).
+
+#### [`PAPERLESS_OCR_ENGINE_PRIORITY=<list>`](#PAPERLESS_OCR_ENGINE_PRIORITY) {#PAPERLESS_OCR_ENGINE_PRIORITY}
+
+: Specify an ordered, comma-separated list of OCR engine IDs to try. Paperless will use the first engine in the list that is both installed and supports the document's MIME type.
+
+    Available engine IDs include:
+    - `tesseract`: The standard Tesseract-based OCR (default).
+    - `docling`: High-accuracy AI-based OCR (if configured).
+    - `ollama`: Vision-model-based OCR (if configured).
+
+    If an engine in the list is not available, the broker will automatically fall back to the next one.
+
+    Defaults to `tesseract`.
+
 Paperless uses [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/)
-for performing OCR on documents and images. Paperless uses sensible
+for performing OCR on documents and images when using the `tesseract` engine. Paperless uses sensible
 defaults for most settings, but all of them can be configured to your
 needs.
 

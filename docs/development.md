@@ -435,6 +435,7 @@ def myparser_consumer_declaration(sender, **kwargs):
     return {
         "parser": MyCustomParser,
         "weight": 0,
+        "engine_id": "my_engine",
         "mime_types": {
             "application/pdf": ".pdf",
             "image/jpeg": ".jpg",
@@ -446,6 +447,7 @@ def myparser_consumer_declaration(sender, **kwargs):
 -   `weight` is used whenever two or more parsers are able to parse a
     file: The parser with the higher weight wins. This can be used to
     override the parsers provided by Paperless-ngx.
+-   `engine_id` (optional) is a unique string identifying the OCR engine. If provided, the parser becomes selectable via the **OCR Broker** (global priority settings or workflows).
 -   `mime_types` is a dictionary. The keys are the mime types your
     parser supports and the value is the default file extension that
     Paperless-ngx should use when storing files and serving them for

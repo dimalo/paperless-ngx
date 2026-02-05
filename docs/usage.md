@@ -530,6 +530,7 @@ The following workflow action types are available:
 
 -   Title, see [workflow placeholders](usage.md#workflow-placeholders) below
 -   Tags, correspondent, document type and storage path
+-   **OCR Engine**: Override the global OCR engine priority for matching documents. This allows routing specific documents (e.g. based on source or filename pattern) to different engines like Tesseract, Docling, or Ollama.
 -   Document owner
 -   View and / or edit permissions to users or groups
 -   Custom fields. Note that no value for the field will be set
