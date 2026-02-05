@@ -355,6 +355,43 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=256,
     )
 
+    docling_force_ocr = models.BooleanField(
+        verbose_name=_("Docling force OCR"),
+        null=True,
+        help_text=_(
+            "Force OCR even if the PDF already contains text. "
+            "Useful for improving quality of born-digital PDFs.",
+        ),
+    )
+
+    docling_language = models.CharField(
+        verbose_name=_("Docling language"),
+        null=True,
+        blank=True,
+        max_length=32,
+        help_text=_(
+            "Language code for OCR (e.g., 'eng', 'deu'). Defaults to OCR_LANGUAGE.",
+        ),
+    )
+
+    docling_endpoint = models.CharField(
+        verbose_name=_("Docling endpoint"),
+        null=True,
+        blank=True,
+        max_length=256,
+        help_text=_(
+            "Base URL for Docling server API (e.g., http://localhost:5001). "
+            "Leave blank to use local Docling library if installed.",
+        ),
+    )
+
+    docling_timeout = models.PositiveIntegerField(
+        verbose_name=_("Docling timeout"),
+        null=True,
+        validators=[MinValueValidator(1)],
+        help_text=_("Timeout in seconds for Docling processing. Default: 120."),
+    )
+
     class Meta:
         verbose_name = _("paperless application settings")
 

@@ -522,7 +522,18 @@ There are also 'advanced' filters available for `Added`, `Updated` and `Schedule
 
 #### Types {#workflow-action-types}
 
-The following workflow action types are available:
+Currently, there are four events that correspond to workflow trigger 'types':
+
+1. **Consumption Started**: _before_ a document is consumed, so events can include filters by source (mail, consumption
+   folder or API), file path, file name, mail rule
+2. **Document Added**: _after_ a document is added. At this time, file path and source information is no longer available,
+   but the document content has been extracted and metadata such as document type, tags, etc. have been set, so these can now
+   be used for filtering.
+3. **Document Updated**: when a document is updated. Similar to 'added' events, triggers can include filtering by content matching,
+   tags, doc type, correspondent or storage path.
+4. **Scheduled**: a scheduled trigger that can be used to run workflows at a specific time. The date used can be either the document
+   added, created, updated date or you can specify a (date) custom field. You can also specify a day offset from the date (positive
+   offsets will trigger after the date, negative offsets will trigger before).
 
 ##### Assignment {#workflow-action-assignment}
 
@@ -530,10 +541,31 @@ The following workflow action types are available:
 
 -   Title, see [workflow placeholders](usage.md#workflow-placeholders) below
 -   Tags, correspondent, document type and storage path
--   **OCR Engine**: Override the global OCR engine priority for matching documents. This allows routing specific documents (e.g. based on source or filename pattern) to different engines like Tesseract, Docling, or Ollama.
+-   **OCR Engine**: Override the global OCR engine priority for matching documents. This allows routing specific documents (e.g. based on source or filename pattern) to different engines like Tesseract, Docling, or Ollama. For example, you can route all invoices to Docling for high-accuracy table extraction while using Tesseract for simple letters.
 -   Document owner
 -   View and / or edit permissions to users or groups
 -   Custom fields. Note that no value for the field will be set
+
+## Structural OCR & Docling {#docling}
+
+Paperless-ngx supports the **Docling** OCR engine for high-accuracy, layout-aware document parsing. Unlike traditional OCR, Docling understands document structure.
+
+### Features
+
+-   **Table Extraction:** Automatically detects tables and preserves their structure in the extracted text.
+-   **Handwriting Detection:** Identifies handwritten sections and can automatically tag documents with a `HANDWRITTEN` label.
+-   **Rich Metadata:** Docling extracts semantic key-value pairs (e.g. from forms) which can be automatically mapped to Paperless Custom Fields.
+
+### Configuration
+
+You can configure Docling globally in **Settings > Application Configuration > OCR Settings**. Key settings include:
+
+-   **Docling Endpoint:** Use a remote `docling-serve` instance to offload heavy AI processing from your main Paperless server.
+-   **Force OCR:** Recommended for high-quality extraction from born-digital PDFs that might have poor internal text layers.
+
+### Automatic Tagging
+
+When Docling detects specific structural features, it can automatically apply tags to your documents. Common labels include `TABLE`, `FORMULA`, `HANDWRITTEN`, and `SIGNATURE`. To enable this, simply create tags with these exact names (case-insensitive) and Docling will apply them during consumption.
 
 ##### Removal {#workflow-action-removal}
 

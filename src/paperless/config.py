@@ -21,6 +21,16 @@ class BaseConfig:
             app_config = ApplicationConfiguration.objects.all().first()
         return app_config
 
+    def _normalize_endpoint(self, endpoint: str | None) -> str | None:
+        if not endpoint:
+            return None
+        endpoint = endpoint.strip()
+        if not endpoint:
+            return None
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+        return endpoint.rstrip("/")
+
 
 @dataclasses.dataclass
 class OutputTypeConfig(BaseConfig):
@@ -207,3 +217,29 @@ class AIConfig(BaseConfig):
     @property
     def llm_index_enabled(self) -> bool:
         return bool(self.ai_enabled and self.llm_embedding_backend)
+
+
+@dataclasses.dataclass
+class DoclingConfig(BaseConfig):
+    """
+    Specific settings for the Docling OCR parser
+    """
+
+    force_ocr: bool = dataclasses.field(init=False)
+    language: str = dataclasses.field(init=False)
+    endpoint: str | None = dataclasses.field(init=False)
+    timeout: int = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        app_config = self._get_config_instance()
+
+        self.force_ocr = (
+            app_config.docling_force_ocr
+            if app_config.docling_force_ocr is not None
+            else settings.DOCLING_FORCE_OCR
+        )
+        self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
+        self.endpoint = self._normalize_endpoint(
+            app_config.docling_endpoint or settings.DOCLING_ENDPOINT,
+        )
+        self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT

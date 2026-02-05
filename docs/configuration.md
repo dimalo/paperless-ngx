@@ -742,12 +742,44 @@ Paperless uses an **OCR Broker** to select the best available OCR engine for eac
 
     Available engine IDs include:
     - `tesseract`: The standard Tesseract-based OCR (default).
-    - `docling`: High-accuracy AI-based OCR (if configured).
+    - `docling`: High-accuracy AI-based OCR (if configured). Supports structural parsing (tables, handwriting, forms).
     - `ollama`: Vision-model-based OCR (if configured).
 
     If an engine in the list is not available, the broker will automatically fall back to the next one.
 
     Defaults to `tesseract`.
+
+    !!! note
+
+        These settings are also configurable via the **OCR Settings** tab in the web UI for easy adjustments without restarting.
+
+#### [`PAPERLESS_DOCLING_ENDPOINT=<url>`](#PAPERLESS_DOCLING_ENDPOINT) {#PAPERLESS_DOCLING_ENDPOINT}
+
+: Base URL for a `docling-serve` instance. If set, Paperless will offload Docling processing to this server. If unset, it will attempt to use the local `docling` Python library if installed in the environment.
+
+    Example: `http://localhost:5001`
+
+    Defaults to None.
+
+#### [`PAPERLESS_DOCLING_FORCE_OCR=<bool>`](#PAPERLESS_DOCLING_FORCE_OCR) {#PAPERLESS_DOCLING_FORCE_OCR}
+
+: Force Docling to perform OCR even if a PDF already contains a text layer. This can significantly improve the quality of documents with poor existing text or complex layouts (e.g. tables).
+
+    Defaults to `false`.
+
+#### [`PAPERLESS_DOCLING_LANGUAGE=<lang>`](#PAPERLESS_DOCLING_LANGUAGE) {#PAPERLESS_DOCLING_LANGUAGE}
+
+: Customize the language Docling should use for OCR.
+
+    Should be a language code (e.g. `eng`, `deu`). If multiple languages are used, separate them with `+` (e.g. `deu+eng`).
+
+    Defaults to the value of `PAPERLESS_OCR_LANGUAGE`.
+
+#### [`PAPERLESS_DOCLING_TIMEOUT=<int>`](#PAPERLESS_DOCLING_TIMEOUT) {#PAPERLESS_DOCLING_TIMEOUT}
+
+: Timeout in seconds for Docling processing. Larger or more complex documents may require more time.
+
+    Defaults to 120.
 
 Paperless uses [OCRmyPDF](https://ocrmypdf.readthedocs.io/en/latest/)
 for performing OCR on documents and images when using the `tesseract` engine. Paperless uses sensible

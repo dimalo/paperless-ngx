@@ -344,6 +344,7 @@ INSTALLED_APPS = [
     "paperless",
     "documents.apps.DocumentsConfig",
     "paperless_tesseract.apps.PaperlessTesseractConfig",
+    "paperless_docling.apps.PaperlessDoclingConfig",
     "paperless_text.apps.PaperlessTextConfig",
     "paperless_mail.apps.PaperlessMailConfig",
     "paperless_remote.apps.PaperlessRemoteParserConfig",
@@ -1466,3 +1467,8 @@ LLM_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_ENDPOINT")
 # OCR Engine Settings                                                          #
 ################################################################################
 OCR_ENGINE_PRIORITY = os.getenv("PAPERLESS_OCR_ENGINE_PRIORITY", "tesseract")
+
+DOCLING_ENDPOINT = os.getenv("PAPERLESS_DOCLING_ENDPOINT", None)
+DOCLING_FORCE_OCR = __get_boolean("PAPERLESS_DOCLING_FORCE_OCR", "false")
+DOCLING_LANGUAGE = os.getenv("PAPERLESS_DOCLING_LANGUAGE", OCR_LANGUAGE)
+DOCLING_TIMEOUT = __get_int("PAPERLESS_DOCLING_TIMEOUT", 120)

@@ -194,6 +194,38 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.OCR,
   },
   {
+    key: 'docling_endpoint',
+    title: $localize`Docling Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_ENDPOINT',
+    category: ConfigCategory.OCR,
+    note: $localize`Base URL for Docling server API (e.g., http://localhost:5001). Leave blank to use local Docling library if installed.`,
+  },
+  {
+    key: 'docling_force_ocr',
+    title: $localize`Docling Force OCR`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_DOCLING_FORCE_OCR',
+    category: ConfigCategory.OCR,
+    note: $localize`Force OCR even if the PDF already contains text. Useful for improving quality of born-digital PDFs.`,
+  },
+  {
+    key: 'docling_language',
+    title: $localize`Docling Language`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_LANGUAGE',
+    category: ConfigCategory.OCR,
+    note: $localize`Language code for OCR (e.g., 'eng', 'deu'). Defaults to OCR_LANGUAGE.`,
+  },
+  {
+    key: 'docling_timeout',
+    title: $localize`Docling Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_DOCLING_TIMEOUT',
+    category: ConfigCategory.OCR,
+    note: $localize`Timeout in seconds for Docling processing. Default: 120.`,
+  },
+  {
     key: 'app_logo',
     title: $localize`Application Logo`,
     type: ConfigOptionType.File,
@@ -381,4 +413,8 @@ export interface PaperlessConfig extends ObjectWithId {
   llm_model: string
   llm_api_key: string
   llm_endpoint: string
+  docling_force_ocr: boolean
+  docling_language: string
+  docling_endpoint: string
+  docling_timeout: number
 }

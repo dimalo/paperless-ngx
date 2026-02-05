@@ -390,6 +390,43 @@ Custom parsers can be added to Paperless-ngx to support more file types. In
 order to do that, you need to write the parser itself and announce its
 existence to Paperless-ngx.
 
+#### OCR Broker Integration
+
+If your parser supports OCR or structural extraction, you can integrate it with the **OCR Broker**. This allows users to prioritize your engine in the UI or via workflows.
+
+To do this, include an `engine_id` in your consumer declaration:
+
+```python
+def myparser_consumer_declaration(sender, **kwargs):
+    return {
+        "parser": MyCustomParser,
+        "weight": 0,
+        "engine_id": "my_engine", # Unique ID for the broker
+        "mime_types": {
+            "application/pdf": ".pdf",
+        }
+    }
+```
+
+#### Decoupled Metadata Pattern
+
+When extracting rich metadata (like Docling's tables, key-value pairs, or labels), it is recommended to use the **Decoupled Metadata Pattern** to avoid polluting the core `DocumentParser` interface.
+
+1.  **Cache findings:** During the `parse()` method, store your findings in the Django cache using `self.logging_group` as a key.
+2.  **Signal Receiver:** Implement a receiver for the `document_consumption_finished` signal.
+3.  **Apply Metadata:** In the receiver, retrieve the cached data and apply it to the `Document` object (e.g. creating Custom Fields or adding Tags).
+
+Example:
+
+```python
+@receiver(document_consumption_finished)
+def apply_custom_metadata(sender, document, logging_group, **kwargs):
+    meta = cache.get(f"my_meta_{logging_group}")
+    if meta:
+        # Apply to document...
+        pass
+```
+
 The parser itself must extend `documents.parsers.DocumentParser` and
 must implement the methods `parse` and `get_thumbnail`. You can provide
 your own implementation to `get_date` if you don't want to rely on
