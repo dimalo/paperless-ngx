@@ -71,14 +71,32 @@ class OcrConfig(OutputTypeConfig):
 
         app_config = self._get_config_instance()
 
-        self.pages = app_config.pages or settings.OCR_PAGES
-        self.language = app_config.language or settings.OCR_LANGUAGE
-        self.mode = app_config.mode or settings.OCR_MODE
-        self.skip_archive_file = (
-            app_config.skip_archive_file or settings.OCR_SKIP_ARCHIVE_FILE
+        self.pages = (
+            app_config.pages if app_config.pages is not None else settings.OCR_PAGES
         )
-        self.image_dpi = app_config.image_dpi or settings.OCR_IMAGE_DPI
-        self.clean = app_config.unpaper_clean or settings.OCR_CLEAN
+        self.language = (
+            app_config.language
+            if app_config.language is not None
+            else settings.OCR_LANGUAGE
+        )
+        self.mode = (
+            app_config.mode if app_config.mode is not None else settings.OCR_MODE
+        )
+        self.skip_archive_file = (
+            app_config.skip_archive_file
+            if app_config.skip_archive_file is not None
+            else settings.OCR_SKIP_ARCHIVE_FILE
+        )
+        self.image_dpi = (
+            app_config.image_dpi
+            if app_config.image_dpi is not None
+            else settings.OCR_IMAGE_DPI
+        )
+        self.clean = (
+            app_config.unpaper_clean
+            if app_config.unpaper_clean is not None
+            else settings.OCR_CLEAN
+        )
         self.deskew = (
             app_config.deskew if app_config.deskew is not None else settings.OCR_DESKEW
         )
@@ -88,14 +106,19 @@ class OcrConfig(OutputTypeConfig):
             else settings.OCR_ROTATE_PAGES
         )
         self.rotate_threshold = (
-            app_config.rotate_pages_threshold or settings.OCR_ROTATE_PAGES_THRESHOLD
+            app_config.rotate_pages_threshold
+            if app_config.rotate_pages_threshold is not None
+            else settings.OCR_ROTATE_PAGES_THRESHOLD
         )
         self.max_image_pixel = (
-            app_config.max_image_pixels or settings.OCR_MAX_IMAGE_PIXELS
+            app_config.max_image_pixels
+            if app_config.max_image_pixels is not None
+            else settings.OCR_MAX_IMAGE_PIXELS
         )
         self.color_conversion_strategy = (
             app_config.color_conversion_strategy
-            or settings.OCR_COLOR_CONVERSION_STRATEGY
+            if app_config.color_conversion_strategy is not None
+            else settings.OCR_COLOR_CONVERSION_STRATEGY
         )
 
         user_args = None
@@ -132,40 +155,64 @@ class BarcodeConfig(BaseConfig):
         app_config = self._get_config_instance()
 
         self.barcodes_enabled = (
-            app_config.barcodes_enabled or settings.CONSUMER_ENABLE_BARCODES
+            app_config.barcodes_enabled
+            if app_config.barcodes_enabled is not None
+            else settings.CONSUMER_ENABLE_BARCODES
         )
         self.barcode_enable_tiff_support = (
             app_config.barcode_enable_tiff_support
-            or settings.CONSUMER_BARCODE_TIFF_SUPPORT
+            if app_config.barcode_enable_tiff_support is not None
+            else settings.CONSUMER_BARCODE_TIFF_SUPPORT
         )
         self.barcode_string = (
-            app_config.barcode_string or settings.CONSUMER_BARCODE_STRING
+            app_config.barcode_string
+            if app_config.barcode_string is not None
+            else settings.CONSUMER_BARCODE_STRING
         )
         self.barcode_retain_split_pages = (
             app_config.barcode_retain_split_pages
-            or settings.CONSUMER_BARCODE_RETAIN_SPLIT_PAGES
+            if app_config.barcode_retain_split_pages is not None
+            else settings.CONSUMER_BARCODE_RETAIN_SPLIT_PAGES
         )
         self.barcode_enable_asn = (
-            app_config.barcode_enable_asn or settings.CONSUMER_ENABLE_ASN_BARCODE
+            app_config.barcode_enable_asn
+            if app_config.barcode_enable_asn is not None
+            else settings.CONSUMER_ENABLE_ASN_BARCODE
         )
         self.barcode_asn_prefix = (
-            app_config.barcode_asn_prefix or settings.CONSUMER_ASN_BARCODE_PREFIX
+            app_config.barcode_asn_prefix
+            if app_config.barcode_asn_prefix is not None
+            else settings.CONSUMER_ASN_BARCODE_PREFIX
         )
         self.barcode_upscale = (
-            app_config.barcode_upscale or settings.CONSUMER_BARCODE_UPSCALE
+            app_config.barcode_upscale
+            if app_config.barcode_upscale is not None
+            else settings.CONSUMER_BARCODE_UPSCALE
         )
-        self.barcode_dpi = app_config.barcode_dpi or settings.CONSUMER_BARCODE_DPI
+        self.barcode_dpi = (
+            app_config.barcode_dpi
+            if app_config.barcode_dpi is not None
+            else settings.CONSUMER_BARCODE_DPI
+        )
         self.barcode_max_pages = (
-            app_config.barcode_max_pages or settings.CONSUMER_BARCODE_MAX_PAGES
+            app_config.barcode_max_pages
+            if app_config.barcode_max_pages is not None
+            else settings.CONSUMER_BARCODE_MAX_PAGES
         )
         self.barcode_enable_tag = (
-            app_config.barcode_enable_tag or settings.CONSUMER_ENABLE_TAG_BARCODE
+            app_config.barcode_enable_tag
+            if app_config.barcode_enable_tag is not None
+            else settings.CONSUMER_ENABLE_TAG_BARCODE
         )
         self.barcode_tag_mapping = (
-            app_config.barcode_tag_mapping or settings.CONSUMER_TAG_BARCODE_MAPPING
+            app_config.barcode_tag_mapping
+            if app_config.barcode_tag_mapping is not None
+            else settings.CONSUMER_TAG_BARCODE_MAPPING
         )
         self.barcode_tag_split = (
-            app_config.barcode_tag_split or settings.CONSUMER_TAG_BARCODE_SPLIT
+            app_config.barcode_tag_split
+            if app_config.barcode_tag_split is not None
+            else settings.CONSUMER_TAG_BARCODE_SPLIT
         )
 
 
@@ -202,17 +249,41 @@ class AIConfig(BaseConfig):
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
 
-        self.ai_enabled = app_config.ai_enabled or settings.AI_ENABLED
+        self.ai_enabled = (
+            app_config.ai_enabled
+            if app_config.ai_enabled is not None
+            else settings.AI_ENABLED
+        )
         self.llm_embedding_backend = (
-            app_config.llm_embedding_backend or settings.LLM_EMBEDDING_BACKEND
+            app_config.llm_embedding_backend
+            if app_config.llm_embedding_backend is not None
+            else settings.LLM_EMBEDDING_BACKEND
         )
         self.llm_embedding_model = (
-            app_config.llm_embedding_model or settings.LLM_EMBEDDING_MODEL
+            app_config.llm_embedding_model
+            if app_config.llm_embedding_model is not None
+            else settings.LLM_EMBEDDING_MODEL
         )
-        self.llm_backend = app_config.llm_backend or settings.LLM_BACKEND
-        self.llm_model = app_config.llm_model or settings.LLM_MODEL
-        self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY
-        self.llm_endpoint = app_config.llm_endpoint or settings.LLM_ENDPOINT
+        self.llm_backend = (
+            app_config.llm_backend
+            if app_config.llm_backend is not None
+            else settings.LLM_BACKEND
+        )
+        self.llm_model = (
+            app_config.llm_model
+            if app_config.llm_model is not None
+            else settings.LLM_MODEL
+        )
+        self.llm_api_key = (
+            app_config.llm_api_key
+            if app_config.llm_api_key is not None
+            else settings.LLM_API_KEY
+        )
+        self.llm_endpoint = (
+            app_config.llm_endpoint
+            if app_config.llm_endpoint is not None
+            else settings.LLM_ENDPOINT
+        )
 
     @property
     def llm_index_enabled(self) -> bool:
@@ -238,8 +309,18 @@ class DoclingConfig(BaseConfig):
             if app_config.docling_force_ocr is not None
             else settings.DOCLING_FORCE_OCR
         )
-        self.language = app_config.docling_language or settings.DOCLING_LANGUAGE
-        self.endpoint = self._normalize_endpoint(
-            app_config.docling_endpoint or settings.DOCLING_ENDPOINT,
+        self.language = (
+            app_config.docling_language
+            if app_config.docling_language is not None
+            else settings.DOCLING_LANGUAGE
         )
-        self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
+        self.endpoint = self._normalize_endpoint(
+            app_config.docling_endpoint
+            if app_config.docling_endpoint is not None
+            else settings.DOCLING_ENDPOINT,
+        )
+        self.timeout = (
+            app_config.docling_timeout
+            if app_config.docling_timeout is not None
+            else settings.DOCLING_TIMEOUT
+        )

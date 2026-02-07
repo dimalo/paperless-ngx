@@ -29,11 +29,11 @@
                                             </div>
                                             <div class="mb-n3">
                                                 @switch (option.type) {
-                                                    @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true"></pngx-input-select> }
-                                                    @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false"></pngx-input-number> }
-                                                    @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title></pngx-input-switch> }
-                                                    @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
-                                                    @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
+                                                    @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true" [placeholder]="getPlaceholder(option)"></pngx-input-select> }
+                                                    @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false" [placeholder]="getPlaceholder(option)"></pngx-input-number> }
+                                                    @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title [placeholder]="getPlaceholder(option)"></pngx-input-switch> }
+                                                    @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]" [placeholder]="getPlaceholder(option)"></pngx-input-text> }
+                                                    @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]" [placeholder]="getPlaceholder(option)"></pngx-input-text> }
                                                     @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
                                                     @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
                                                     @case (ConfigOptionType.DragDropSelect) { <pngx-input-drag-drop-select [formControlName]="option.key" [items]="option.choices" [title]="option.title"></pngx-input-drag-drop-select> }

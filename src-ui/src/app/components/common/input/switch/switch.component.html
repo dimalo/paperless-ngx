@@ -36,5 +36,11 @@
 
 
 <ng-template #tipContent>
-  <span class="text-light fst-italic" i18n>Note: value has not yet been set and will not apply until explicitly changed</span>
+  <span class="text-light fst-italic">
+    @if (placeholder) {
+      <ng-container i18n>Using default: {{placeholder}}</ng-container>
+    } @else {
+      <ng-container i18n>Note: value has not yet been set and will not apply until explicitly changed</ng-container>
+    }
+  </span>
 </ng-template>

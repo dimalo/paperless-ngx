@@ -58,6 +58,9 @@ export class AbstractInputComponent<T> implements OnInit, ControlValueAccessor {
   @Input()
   removable: boolean = false
 
+  @Input()
+  placeholder: string = ''
+
   @Output()
   removed: EventEmitter<AbstractInputComponent<any>> = new EventEmitter()
 

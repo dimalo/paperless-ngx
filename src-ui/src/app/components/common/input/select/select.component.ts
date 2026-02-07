@@ -91,9 +91,6 @@ export class SelectComponent extends AbstractInputComponent<number> {
   suggestions: number[]
 
   @Input()
-  placeholder: string
-
-  @Input()
   multiple: boolean = false
 
   @Input()

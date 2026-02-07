@@ -193,7 +193,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         help_text=_(
             "Ordered list of OCR engines to try, comma-separated. "
             "First engine in the list has the highest priority. "
-            "Example: 'docling,tesseract,ollama'",
+            "Example: 'docling_local,docling_remote,tesseract,ollama'",
         ),
     )
 
@@ -389,7 +389,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         verbose_name=_("Docling timeout"),
         null=True,
         validators=[MinValueValidator(1)],
-        help_text=_("Timeout in seconds for Docling processing. Default: 120."),
+        help_text=_("Timeout in seconds for Docling processing. Default: 300."),
     )
 
     class Meta:
@@ -397,3 +397,12 @@ class ApplicationConfiguration(AbstractSingletonModel):
 
     def __str__(self) -> str:  # pragma: no cover
         return "ApplicationConfiguration"
+
+    def save(self, *args, **kwargs):
+        """
+        Always save as the first and only model and clear configuration cache
+        """
+        from django.core.cache import cache
+
+        cache.delete("application_configuration_dict")
+        super().save(*args, **kwargs)

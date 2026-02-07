@@ -173,9 +173,21 @@ export class ConfigComponent
     return `https://docs.paperless-ngx.com/configuration/#${key}`
   }
 
+  getPlaceholder(option: ConfigOption): string {
+    const defaultValue = this.initialConfig?.defaults?.[option.key]
+    if (defaultValue !== undefined && defaultValue !== null) {
+      if (typeof defaultValue === 'object') {
+        return JSON.stringify(defaultValue)
+      }
+      return defaultValue.toString()
+    }
+    return ''
+  }
+
   public saveConfig() {
     this.loading = true
-    const formValue = { ...this.configForm.value }
+    const formValue = this.configForm.value as PaperlessConfig
+    delete formValue.defaults
     if (Array.isArray(formValue.ocr_engine_priority)) {
       formValue.ocr_engine_priority = formValue.ocr_engine_priority.join(',')
     }

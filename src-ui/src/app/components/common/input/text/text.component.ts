@@ -31,9 +31,6 @@ export class TextComponent extends AbstractInputComponent<string> {
   autocomplete: string
 
   @Input()
-  placeholder: string = ''
-
-  @Input()
   suggestion: string = ''
 
   constructor() {

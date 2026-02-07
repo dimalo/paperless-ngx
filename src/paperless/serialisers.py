@@ -6,6 +6,7 @@ from allauth.mfa.models import Authenticator
 from allauth.mfa.totp.internal.auth import TOTP
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.models import SocialApp
+from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.auth.models import Permission
 from django.contrib.auth.models import User
@@ -210,6 +211,51 @@ class ApplicationConfigurationSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+
+    # Defaults (read-only) to show what's active if the DB value is empty
+    defaults = serializers.SerializerMethodField()
+
+    def get_defaults(self, obj):
+        return {
+            "output_type": settings.OCR_OUTPUT_TYPE,
+            "pages": settings.OCR_PAGES,
+            "language": settings.OCR_LANGUAGE,
+            "mode": settings.OCR_MODE,
+            "skip_archive_file": settings.OCR_SKIP_ARCHIVE_FILE,
+            "image_dpi": settings.OCR_IMAGE_DPI,
+            "unpaper_clean": settings.OCR_CLEAN,
+            "deskew": settings.OCR_DESKEW,
+            "rotate_pages": settings.OCR_ROTATE_PAGES,
+            "rotate_pages_threshold": settings.OCR_ROTATE_PAGES_THRESHOLD,
+            "max_image_pixels": settings.OCR_MAX_IMAGE_PIXELS,
+            "color_conversion_strategy": settings.OCR_COLOR_CONVERSION_STRATEGY,
+            "ocr_engine_priority": settings.OCR_ENGINE_PRIORITY,
+            # Barcodes
+            "barcodes_enabled": settings.CONSUMER_ENABLE_BARCODES,
+            "barcode_enable_tiff_support": settings.CONSUMER_BARCODE_TIFF_SUPPORT,
+            "barcode_string": settings.CONSUMER_BARCODE_STRING,
+            "barcode_retain_split_pages": settings.CONSUMER_BARCODE_RETAIN_SPLIT_PAGES,
+            "barcode_enable_asn": settings.CONSUMER_ENABLE_ASN_BARCODE,
+            "barcode_asn_prefix": settings.CONSUMER_ASN_BARCODE_PREFIX,
+            "barcode_upscale": settings.CONSUMER_BARCODE_UPSCALE,
+            "barcode_dpi": settings.CONSUMER_BARCODE_DPI,
+            "barcode_max_pages": settings.CONSUMER_BARCODE_MAX_PAGES,
+            "barcode_enable_tag": settings.CONSUMER_ENABLE_TAG_BARCODE,
+            "barcode_tag_mapping": settings.CONSUMER_TAG_BARCODE_MAPPING,
+            "barcode_tag_split": settings.CONSUMER_TAG_BARCODE_SPLIT,
+            # AI
+            "ai_enabled": settings.AI_ENABLED,
+            "llm_embedding_backend": settings.LLM_EMBEDDING_BACKEND,
+            "llm_embedding_model": settings.LLM_EMBEDDING_MODEL,
+            "llm_backend": settings.LLM_BACKEND,
+            "llm_model": settings.LLM_MODEL,
+            "llm_endpoint": settings.LLM_ENDPOINT,
+            # Docling
+            "docling_force_ocr": settings.DOCLING_FORCE_OCR,
+            "docling_language": settings.DOCLING_LANGUAGE,
+            "docling_endpoint": settings.DOCLING_ENDPOINT,
+            "docling_timeout": settings.DOCLING_TIMEOUT,
+        }
 
     def run_validation(self, data):
         # Empty strings treated as None to avoid unexpected behavior
