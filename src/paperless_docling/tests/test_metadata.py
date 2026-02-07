@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest import mock
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TransactionTestCase
 
 from documents.models import CustomField
 from documents.models import CustomFieldInstance
@@ -13,7 +13,7 @@ from documents.tests.utils import DirectoriesMixin
 from paperless_docling.parsers import DoclingDocumentParser
 
 
-class TestDoclingMetadata(DirectoriesMixin, TestCase):
+class TestDoclingMetadata(DirectoriesMixin, TransactionTestCase):
     def setUp(self):
         super().setUp()
         self.test_group = "test-uuid-123"

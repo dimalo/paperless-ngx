@@ -121,7 +121,7 @@ class TestParserDiscovery(TestCase):
             (
                 None,
                 {
-                    "engine_id": "docling",
+                    "engine_id": "docling_local",
                     "weight": 0,
                     "parser": Docling,
                     "mime_types": {"application/pdf": ".pdf"},
@@ -137,7 +137,7 @@ class TestParserDiscovery(TestCase):
         self.assertEqual(get_parser_class_for_mime_type("application/pdf"), Tesseract)
 
         # 2. Priority override
-        config.ocr_engine_priority = "docling,tesseract"
+        config.ocr_engine_priority = "docling_local,tesseract"
         config.save()
         self.assertEqual(get_parser_class_for_mime_type("application/pdf"), Docling)
 

@@ -6,7 +6,8 @@ from django.test import TestCase
 from documents.parsers import ParseError
 from documents.tests.utils import DirectoriesMixin
 from paperless_docling.parsers import DoclingDocumentParser
-from paperless_docling.signals import docling_consumer_declaration
+from paperless_docling.signals import docling_local_consumer_declaration
+from paperless_docling.signals import docling_remote_consumer_declaration
 
 
 @mock.patch("time.sleep", return_value=None)
@@ -15,23 +16,41 @@ class TestDoclingParser(DirectoriesMixin, TestCase):
         super().setUp()
         self.test_group = "test_group"
 
-    def test_consumer_declaration_disabled(self, _):
-        """Test that the parser is NOT registered when not available."""
+    def test_consumer_declaration_local_disabled(self, _):
+        """Test that local parser is NOT registered when library not available."""
         with mock.patch(
-            "paperless_docling.signals.is_docling_available",
+            "paperless_docling.signals.is_docling_local_available",
             return_value=False,
         ):
-            self.assertIsNone(docling_consumer_declaration(None))
+            self.assertIsNone(docling_local_consumer_declaration(None))
 
-    def test_consumer_declaration_enabled(self, _):
-        """Test that the parser IS registered when available."""
+    def test_consumer_declaration_local_enabled(self, _):
+        """Test that local parser IS registered when library is available."""
         with mock.patch(
-            "paperless_docling.signals.is_docling_available",
+            "paperless_docling.signals.is_docling_local_available",
             return_value=True,
         ):
-            declaration = docling_consumer_declaration(None)
+            declaration = docling_local_consumer_declaration(None)
             self.assertIsNotNone(declaration)
-            self.assertEqual(declaration["engine_id"], "docling")
+            self.assertEqual(declaration["engine_id"], "docling_local")
+
+    def test_consumer_declaration_remote_disabled(self, _):
+        """Test that remote parser is NOT registered when endpoint not configured."""
+        with mock.patch(
+            "paperless_docling.signals.is_docling_remote_available",
+            return_value=False,
+        ):
+            self.assertIsNone(docling_remote_consumer_declaration(None))
+
+    def test_consumer_declaration_remote_enabled(self, _):
+        """Test that remote parser IS registered when endpoint is configured."""
+        with mock.patch(
+            "paperless_docling.signals.is_docling_remote_available",
+            return_value=True,
+        ):
+            declaration = docling_remote_consumer_declaration(None)
+            self.assertIsNotNone(declaration)
+            self.assertEqual(declaration["engine_id"], "docling_remote")
 
     @mock.patch("requests.post")
     @mock.patch("requests.get")
@@ -178,6 +197,7 @@ class TestDoclingParser(DirectoriesMixin, TestCase):
         from paperless_docling.utils import apply_docling_metadata
 
         doc = Document.objects.create(title="Test", content="...")
+        Tag.objects.create(name="Docling: Table")
         field = CustomField.objects.create(
             name="Invoice Number",
             data_type=CustomField.FieldDataType.INT,

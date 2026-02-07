@@ -26,7 +26,7 @@ class TestOCRWorkflow(TestCase):
 
         action = WorkflowAction.objects.create(
             type=WorkflowAction.WorkflowActionType.ASSIGNMENT,
-            assign_ocr_engine="docling",
+            assign_ocr_engine="docling_local",
         )
         workflow.actions.add(action)
 
@@ -45,4 +45,4 @@ class TestOCRWorkflow(TestCase):
         )
 
         # 4. Verify
-        self.assertEqual(result_overrides.ocr_engine, "docling")
+        self.assertEqual(result_overrides.ocr_engine, "docling_local")
