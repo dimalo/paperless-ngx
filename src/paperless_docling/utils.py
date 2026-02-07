@@ -62,16 +62,16 @@ def apply_docling_metadata(document, metadata: dict):
     with transaction.atomic():
         # 1. Apply Semantic Tags
         # We look for tags named "Docling: <LABEL>"
-        labels = metadata.get("docling_labels", set())
+        labels = metadata.get("docling_labels", [])
         if labels:
             applied_tags = []
             for label in labels:
                 tag_name = f"Docling: {label.title()}"
-                tag, created = Tag.objects.get_or_create(
-                    name=tag_name,
-                    defaults={"color": "#0066cc"},  # A nice blue for Docling tags
-                )
-                applied_tags.append(tag)
+                try:
+                    tag = Tag.objects.get(name=tag_name)
+                    applied_tags.append(tag)
+                except Tag.DoesNotExist:
+                    continue
 
             if applied_tags:
                 document.tags.add(*applied_tags)
@@ -90,6 +90,8 @@ def apply_docling_metadata(document, metadata: dict):
                 "invoice no": "invoice number",
                 "total amount": "total",
                 "net amount": "net",
+                "date": "document date",
+                "total": "amount",
             }
 
             applied_fields = []
@@ -97,14 +99,21 @@ def apply_docling_metadata(document, metadata: dict):
             failed_fields = []
 
             for key, value in kv_pairs.items():
-                target_name = key.lower()
+                target_name = key.lower().strip()
                 # Check synonym map
-                target_name = synonyms.get(target_name, target_name)
+                mapped_name = synonyms.get(target_name, target_name)
 
-                field = all_fields.get(target_name)
+                logger.debug(
+                    f"Attempting to map Docling key '{key}' (normalized: '{target_name}', mapped: '{mapped_name}')",
+                )
+
+                field = all_fields.get(mapped_name)
                 if field:
                     try:
                         coerced_value = _coerce_value(value, field.data_type)
+                        logger.debug(
+                            f"Matched field '{field.name}', coerced value: '{coerced_value}'",
+                        )
 
                         # Get the correct value field name (e.g. value_text, value_int)
                         value_field = CustomFieldInstance.get_value_field_name(
