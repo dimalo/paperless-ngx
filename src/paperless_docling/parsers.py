@@ -1,4 +1,5 @@
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -12,7 +13,6 @@ from documents.parsers import make_thumbnail_from_pdf
 from documents.parsers import run_convert
 from paperless.config import DoclingConfig
 from paperless_docling.models import DoclingServerResult
-from paperless_docling.models import ServerDocumentResponse
 
 
 class DoclingDocumentParser(DocumentParser):
@@ -21,6 +21,10 @@ class DoclingDocumentParser(DocumentParser):
     """
 
     logging_name = "paperless.parsing.docling"
+
+    # Reuse local converter to avoid heavy re-initialization
+    _local_converter = None
+    _converter_lock = threading.Lock()
 
     def get_settings(self) -> DoclingConfig:
         """
@@ -223,18 +227,24 @@ class DoclingDocumentParser(DocumentParser):
         """
         try:
             from docling.document_converter import DocumentConverter
+
+            from paperless_docling.models import DoclingDocument
+            from paperless_docling.models import ServerDocumentResponse
         except ImportError:
             raise ParseError(
                 "Docling library not found. Install 'docling' or configure DOCLING_ENDPOINT.",
             )
 
         try:
-            from docling.document_converter import DocumentConverter
+            if DoclingDocumentParser._local_converter is None:
+                with DoclingDocumentParser._converter_lock:
+                    if DoclingDocumentParser._local_converter is None:
+                        DoclingDocumentParser._local_converter = DocumentConverter()
 
-            from paperless_docling.models import DoclingDocument
-
-            converter = DocumentConverter()
-            result = converter.convert(file_path)
+            # Ensure we don't call convert() across threads simultaneously
+            # if the library isn't thread-safe.
+            with DoclingDocumentParser._converter_lock:
+                result = DoclingDocumentParser._local_converter.convert(file_path)
 
             # Use model_validate to ensure the dict matches our schema
             json_content = DoclingDocument.model_validate(

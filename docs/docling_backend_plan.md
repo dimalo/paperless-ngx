@@ -21,58 +21,33 @@ This document outlines the plan for porting the **Docling OCR Backend** from the
 
 ### 1. Unified Parser Architecture (`DoclingDocumentParser`)
 
-The parser determines its execution path based on the `docling_endpoint` setting.
+...
 
-**Decision Tree:**
-
-```python
-IF docling_endpoint is set:
-    Use _convert_server() -> HTTP POST to Docling-serve API -> Poll for task completion
-ELSE:
-    Use _convert_local() -> Import 'docling' library -> Process locally
-```
-
-**Key Implementation Details:**
-
--   **Markdown Source:** Uses `md_content` for `self.text` to preserve tables/headers for the search index.
--   **Sanitization:** Regex-based removal of base64 images from Markdown to keep the DB clean.
--   **Archive Strategy:** Returns the **original document** as archive by default to preserve vector quality and prevent rasterization artifacts.
+-   **Resource Management:** Uses a lazily-loaded singleton for the `DocumentConverter` to avoid re-initializing heavy ML models for every document.
 
 ### 2. Configuration & Signal Registration
 
--   **Database:** Added `docling_endpoint`, `docling_force_ocr`, `docling_language`, `docling_timeout`.
--   **Config Class:** `DoclingConfig` with automatic endpoint normalization (`http://` prefixing).
--   **Broker Hook:** Registered `engine_id: "docling"` via `document_consumer_declaration`.
+...
 
----
-
-## 🟡 Phase 2: Rich Metadata & Debugging (IN PROGRESS 🔄)
+## 🟢 Phase 2: Rich Metadata & Debugging (COMPLETED ✅)
 
 ### A. Rich Metadata Mapping (Smart Enrichment)
 
-Docling provides semantic labels and key-value pairs. We will map these to Paperless-ngx features without creating "tag spam."
+Docling provides semantic labels and key-value pairs.
 
-#### 1. Custom Field Mapping
+#### 1. Custom Field Mapping & Type Coercion
 
--   **Logic:** Map `key_value_items` (e.g., `{"key": "Invoice Number", "value": "123"}`) to existing Custom Fields.
--   **Matching:** Case-insensitive exact match (Phase 2.1) -> Lookup map for synonyms (Phase 2.2).
--   **Confidence:** Only apply if Docling confidence > 0.8 (if available).
+-   **Coercion:** Implemented a robust type-conversion layer (`_coerce_value`) for `INT`, `FLOAT`, `DATE`, `BOOLEAN`, and `MONETARY` fields.
+-   **Synonyms:** Added a mapping for common metadata keys (e.g., `inv. no` -> `invoice number`).
 
-#### 2. Semantic Labels to Tags
+#### 2. Automatic Semantic Tagging (Discovery)
 
--   **Labels:** Docling identifies `TABLE`, `FORMULA`, `HANDWRITTEN`, `KEY_VALUE_REGION`.
--   **Tagging Rule:** Only apply semantic tags (e.g., `Docling: Table`) if they **already exist** in the system.
--   **Discovery Log:** If metadata is found but no mapping/tag exists, log a summary:
-    -   `[Docling] Detected semantic features: Table, Handwritten Text`
-    -   `[Docling] Found unmapped metadata: { "Tax ID": "12-345" }`
+-   **Strategy:** Automatically create tags with the prefix `Docling: ` (e.g., `Docling: Table`) and a distinct blue color (`#0066cc`).
+-   **Logic:** Uses `get_or_create` to ensure the feature is useful out-of-the-box without manual setup.
 
-### B. Detailed Debug Traceability
+### B. Caching & Decoupled Processing
 
-To aid development and quality analysis, the parser will save artifacts when `DEBUG=True` or a new `docling_debug` flag is enabled.
-
--   **Raw JSON:** Save the complete Docling response to `scratch/docling/raw_{doc_id}_{timestamp}.json`.
--   **Raw Markdown:** Save the unsanitized Markdown to `scratch/docling/parsed_{doc_id}_{timestamp}.md`.
--   **Detailed Trace:** Log the "reasoning" for field matches (e.g., `"Matched 'Inv. No' to Custom Field 'Invoice Number' via synonym map"`).
+Metadata extracted by the parser is stored in the Django cache using the `logging_group` as the key. A signal receiver retrieves this data after the document transaction commits to safely apply tags and custom fields.
 
 ---
 

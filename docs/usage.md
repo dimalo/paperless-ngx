@@ -541,7 +541,7 @@ Currently, there are four events that correspond to workflow trigger 'types':
 
 -   Title, see [workflow placeholders](usage.md#workflow-placeholders) below
 -   Tags, correspondent, document type and storage path
--   **OCR Engine**: Override the global OCR engine priority for matching documents. This allows routing specific documents (e.g. based on source or filename pattern) to different engines like Tesseract, Docling, or Ollama. For example, you can route all invoices to Docling for high-accuracy table extraction while using Tesseract for simple letters.
+-   **OCR Engine**: Override the global OCR engine priority for matching documents. This allows routing specific documents (e.g. based on source or filename pattern) to different engines like Tesseract or Docling. Older custom parsers are also supported and can be targeted using their lowercased class name or module name as the ID.
 -   Document owner
 -   View and / or edit permissions to users or groups
 -   Custom fields. Note that no value for the field will be set
@@ -554,7 +554,7 @@ Paperless-ngx supports the **Docling** OCR engine for high-accuracy, layout-awar
 
 -   **Table Extraction:** Automatically detects tables and preserves their structure in the extracted text.
 -   **Handwriting Detection:** Identifies handwritten sections and can automatically tag documents with a `HANDWRITTEN` label.
--   **Rich Metadata:** Docling extracts semantic key-value pairs (e.g. from forms) which can be automatically mapped to Paperless Custom Fields.
+-   **Rich Metadata:** Docling extracts semantic key-value pairs (e.g. from forms) which are automatically mapped to Paperless Custom Fields using case-insensitive name matching and a built-in synonym map (e.g. `inv. no` will correctly populate a field named `Invoice Number`).
 
 ### Configuration
 
@@ -565,7 +565,7 @@ You can configure Docling globally in **Settings > Application Configuration > O
 
 ### Automatic Tagging
 
-When Docling detects specific structural features, it can automatically apply tags to your documents. Common labels include `TABLE`, `FORMULA`, `HANDWRITTEN`, and `SIGNATURE`. To enable this, simply create tags with these exact names (case-insensitive) and Docling will apply them during consumption.
+When Docling detects specific structural features, it automatically creates and applies tags with the prefix `Docling: ` (e.g., `Docling: Table`, `Docling: Handwritten`). These tags are assigned a distinct blue color (`#0066cc`) to help you visually identify AI-extracted features. You do not need to create these tags manually; they will appear as soon as the first document containing these features is processed.
 
 ##### Removal {#workflow-action-removal}
 
