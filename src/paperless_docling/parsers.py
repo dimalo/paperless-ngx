@@ -26,6 +26,19 @@ class DoclingDocumentParser(DocumentParser):
     _local_converter = None
     _converter_lock = threading.Lock()
 
+    def __init__(self, logging_group, progress_callback=None, mode=None):
+        """
+        Initialize the parser.
+
+        Args:
+            logging_group: The logging group for this parser
+            progress_callback: Optional progress callback
+            mode: Either 'local' or 'remote' to force a specific mode.
+                  If None, auto-detect based on settings.
+        """
+        super().__init__(logging_group, progress_callback)
+        self.mode = mode
+
     def get_settings(self) -> DoclingConfig:
         """
         This parser uses the Docling configuration settings to parse documents
@@ -103,8 +116,12 @@ class DoclingDocumentParser(DocumentParser):
         # 1. Key-Value Extraction
         if response.document.json_content:
             doc = response.document.json_content
+            self.log.info(
+                f"Docling raw items found: {len(doc.key_value_items)} kv items, {len(doc.tables)} tables, {len(doc.headings)} headings",
+            )
             for item in doc.key_value_items:
                 if item.key and item.value:
+                    self.log.info(f"Docling found KV: '{item.key}' = '{item.value}'")
                     metadata["docling_key_value"][item.key] = item.value
 
         # 2. Semantic Labels
@@ -119,6 +136,10 @@ class DoclingDocumentParser(DocumentParser):
             for text_item in doc.texts:
                 if text_item.label in ["FORMULA", "HANDWRITTEN", "SIGNATURE"]:
                     metadata["docling_labels"].add(text_item.label)
+
+        # Convert set to list for stable JSON serialization in all cache backends
+        if metadata["docling_labels"]:
+            metadata["docling_labels"] = sorted(list(metadata["docling_labels"]))
 
         # Log findings for discovery (non-distracting)
         if metadata["docling_key_value"]:
@@ -188,6 +209,7 @@ class DoclingDocumentParser(DocumentParser):
             raise ParseError(f"Docling server communication failed: {e}")
 
         start_time = time.time()
+        poll_count = 0
         while True:
             if time.time() - start_time > self.settings.timeout:
                 raise ParseError(
@@ -195,6 +217,7 @@ class DoclingDocumentParser(DocumentParser):
                 )
 
             time.sleep(2)
+            poll_count += 1
             try:
                 response = requests.get(
                     f"{self.settings.endpoint}/v1alpha/status/poll/{task_id}",
@@ -204,6 +227,15 @@ class DoclingDocumentParser(DocumentParser):
                 response.raise_for_status()
                 status_data = response.json()
                 task_status = status_data.get("task_status", "").lower()
+
+                self.log.debug(
+                    f"Docling task {task_id} status: {task_status} (elapsed: {int(time.time() - start_time)}s / {self.settings.timeout}s)",
+                )
+
+                if poll_count % 3 == 0:
+                    self.log.info(
+                        f"Docling task {task_id} polling (status: {task_status}, {int(time.time() - start_time)}s elapsed)",
+                    )
 
                 if task_status in ["success", "finished", "completed"]:
                     result_response = requests.get(
@@ -273,7 +305,12 @@ class DoclingDocumentParser(DocumentParser):
         if self.is_image(mime_type):
             processed_path = self.preprocess_image(document_path)
 
-        if self.settings.endpoint:
+        # Determine whether to use local or remote based on mode or settings
+        use_remote = self.mode == "remote" or (
+            self.mode is None and self.settings.endpoint
+        )
+
+        if use_remote:
             response = self._convert_server(processed_path)
         else:
             response = self._convert_local(processed_path)
@@ -286,11 +323,9 @@ class DoclingDocumentParser(DocumentParser):
 
         # Cache metadata for decoupled application (signals.py)
         if self.metadata:
-            cache.set(
-                f"docling_meta_{self.logging_group}",
-                self.metadata,
-                timeout=600,  # 10 minutes should be enough for consumption to finish
-            )
+            cache_key = f"docling_meta_{self.logging_group}"
+            cache.set(cache_key, self.metadata, timeout=1800)
+            self.log.debug(f"Cached Docling metadata at {cache_key}")
 
         # Extract text content
         doc_data = response.document

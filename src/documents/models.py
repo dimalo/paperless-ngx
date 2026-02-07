@@ -1477,7 +1477,7 @@ class WorkflowAction(models.Model):
         max_length=32,
         help_text=_(
             "Override the OCR engine for this document. "
-            "Available engines: tesseract, docling, ollama (if installed).",
+            "Available engines: tesseract, docling_local, docling_remote, ollama (if installed).",
         ),
     )
 

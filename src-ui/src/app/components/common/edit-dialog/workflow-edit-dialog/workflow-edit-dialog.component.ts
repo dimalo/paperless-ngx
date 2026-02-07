@@ -481,7 +481,8 @@ export class WorkflowEditDialogComponent
   dateCustomFields: CustomField[]
   ocrEngineOptions = [
     { id: 'tesseract', name: $localize`Tesseract` },
-    { id: 'docling', name: $localize`Docling` },
+    { id: 'docling_local', name: $localize`Docling (Local)` },
+    { id: 'docling_remote', name: $localize`Docling (Remote)` },
     { id: 'ollama', name: $localize`Ollama` },
   ]
 

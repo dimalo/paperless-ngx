@@ -187,7 +187,8 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.DragDropSelect,
     choices: [
       { id: 'tesseract', name: $localize`Tesseract` },
-      { id: 'docling', name: $localize`Docling` },
+      { id: 'docling_local', name: $localize`Docling (Local)` },
+      { id: 'docling_remote', name: $localize`Docling (Remote)` },
       { id: 'ollama', name: $localize`Ollama` },
     ],
     config_key: 'PAPERLESS_OCR_ENGINE_PRIORITY',
@@ -223,7 +224,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_DOCLING_TIMEOUT',
     category: ConfigCategory.OCR,
-    note: $localize`Timeout in seconds for Docling processing. Default: 120.`,
+    note: $localize`Timeout in seconds for Docling processing. Default: 300.`,
   },
   {
     key: 'app_logo',
@@ -391,7 +392,6 @@ export interface PaperlessConfig extends ObjectWithId {
   max_image_pixels: number
   color_conversion_strategy: ColorConvertConfig
   user_args: object
-  ocr_engine_priority: string
   app_logo: string
   app_title: string
   barcodes_enabled: boolean
@@ -405,7 +405,6 @@ export interface PaperlessConfig extends ObjectWithId {
   barcode_max_pages: number
   barcode_enable_tag: boolean
   barcode_tag_mapping: object
-  barcode_tag_split: boolean
   ai_enabled: boolean
   llm_embedding_backend: string
   llm_embedding_model: string
@@ -417,4 +416,32 @@ export interface PaperlessConfig extends ObjectWithId {
   docling_language: string
   docling_endpoint: string
   docling_timeout: number
+  ocr_engine_priority: string
+  ocr_engine: string
+  ocr_alignment_threshold: number
+  ocr_custom_alignment: boolean
+  ocr_sharpen: boolean
+  ocr_sharpen_percent: number
+  ocr_sharpen_radius: number
+  ocr_sharpen_threshold: number
+  ollama_endpoint: string
+  ollama_model: string
+  ollama_prompt_template: string
+  ollama_timeout: number
+  llm_timeout: number
+  ollama_ocr_debug_thumbnail: boolean
+  llm_embedding_api_key: string
+  llm_embedding_endpoint: string
+  vector_store_backend: string
+  vector_store_host: string
+  vector_store_name: string
+  vector_store_pass: string
+  vector_store_port: number
+  vector_store_user: string
+  ai_system_prompt: string
+  auto_create_threshold: number
+  confidence_threshold: number
+  enable_auto_ai_enhancement: boolean
+  barcode_tag_split: boolean
+  defaults?: Partial<PaperlessConfig>
 }
