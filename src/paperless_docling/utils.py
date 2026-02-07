@@ -28,7 +28,7 @@ def _coerce_value(value, data_type):
             return value.date()
         # Docling usually returns strings for now
         return datetime.fromisoformat(str(value)).date()
-    if data_type == CustomField.FieldDataType.BOOLEAN:
+    if data_type == CustomField.FieldDataType.BOOL:
         if isinstance(value, bool):
             return value
         return str(value).lower() in ("true", "1", "yes", "y")

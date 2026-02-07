@@ -99,6 +99,87 @@ class TestParserDiscovery(TestCase):
             self.assertIsNone(get_parser_class_for_mime_type("application/pdf"))
 
     @mock.patch("documents.parsers.document_consumer_declaration.send")
+    def test_get_parser_priority(self, m) -> None:
+        """Test sorting by global priority string."""
+
+        class Tesseract:
+            pass
+
+        class Docling:
+            pass
+
+        m.return_value = (
+            (
+                None,
+                {
+                    "engine_id": "tesseract",
+                    "weight": 10,
+                    "parser": Tesseract,
+                    "mime_types": {"application/pdf": ".pdf"},
+                },
+            ),
+            (
+                None,
+                {
+                    "engine_id": "docling",
+                    "weight": 0,
+                    "parser": Docling,
+                    "mime_types": {"application/pdf": ".pdf"},
+                },
+            ),
+        )
+
+        from paperless.models import ApplicationConfiguration
+
+        config = ApplicationConfiguration.objects.first()
+
+        # 1. Default (tesseract has higher weight)
+        self.assertEqual(get_parser_class_for_mime_type("application/pdf"), Tesseract)
+
+        # 2. Priority override
+        config.ocr_engine_priority = "docling,tesseract"
+        config.save()
+        self.assertEqual(get_parser_class_for_mime_type("application/pdf"), Docling)
+
+    @mock.patch("documents.parsers.document_consumer_declaration.send")
+    def test_engine_id_inference(self, m) -> None:
+        """Test that engine_id is inferred for old parsers."""
+
+        class MyCustomParser:
+            pass
+
+        m.return_value = (
+            (
+                None,
+                {
+                    "weight": 0,
+                    "parser": MyCustomParser,
+                    "mime_types": {"application/pdf": ".pdf"},
+                },
+            ),
+        )
+
+        # Should infer 'mycustomparser' from class name
+        # We need to trigger the logic that caches config too
+        self.assertEqual(
+            get_parser_class_for_mime_type("application/pdf"),
+            MyCustomParser,
+        )
+
+        # Verify inference logic worked by checking the modified declaration in options (internal)
+        # Actually we can just check if it matches a priority string
+        from paperless.models import ApplicationConfiguration
+
+        config = ApplicationConfiguration.objects.first()
+        config.ocr_engine_priority = "mycustomparser"
+        config.save()
+
+        self.assertEqual(
+            get_parser_class_for_mime_type("application/pdf"),
+            MyCustomParser,
+        )
+
+    @mock.patch("documents.parsers.document_consumer_declaration.send")
     def test_get_parser_class_no_valid_parser(self, m, *args) -> None:
         """
         GIVEN:

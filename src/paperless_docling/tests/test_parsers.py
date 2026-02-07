@@ -149,3 +149,51 @@ class TestDoclingParser(DirectoriesMixin, TestCase):
         self.assertEqual(converted.top, 190)
         self.assertEqual(converted.bottom, 170)
         self.assertEqual(converted.coord_origin, "BOTTOMLEFT")
+
+    def test_metadata_coercion(self, _):
+        """Test _coerce_value for different data types."""
+        from documents.models import CustomField
+        from paperless_docling.utils import _coerce_value
+
+        self.assertEqual(_coerce_value("123", CustomField.FieldDataType.INT), 123)
+        self.assertEqual(_coerce_value("12.34", CustomField.FieldDataType.FLOAT), 12.34)
+        self.assertEqual(
+            _coerce_value("2023-01-01", CustomField.FieldDataType.DATE).isoformat(),
+            "2023-01-01",
+        )
+        self.assertEqual(_coerce_value("yes", CustomField.FieldDataType.BOOL), True)
+        self.assertEqual(_coerce_value("no", CustomField.FieldDataType.BOOL), False)
+        # Monetary normalization
+        self.assertEqual(
+            _coerce_value("$ 1,234.56", CustomField.FieldDataType.MONETARY),
+            "1,234.56",
+        )
+
+    def test_apply_metadata(self, _):
+        """Test full metadata application flow."""
+        from documents.models import CustomField
+        from documents.models import CustomFieldInstance
+        from documents.models import Document
+        from documents.models import Tag
+        from paperless_docling.utils import apply_docling_metadata
+
+        doc = Document.objects.create(title="Test", content="...")
+        field = CustomField.objects.create(
+            name="Invoice Number",
+            data_type=CustomField.FieldDataType.INT,
+        )
+
+        metadata = {
+            "docling_labels": {"TABLE"},
+            "docling_key_value": {"inv. no": "999"},
+        }
+
+        apply_docling_metadata(doc, metadata)
+
+        # Check tag auto-creation
+        self.assertTrue(Tag.objects.filter(name="Docling: Table").exists())
+        self.assertIn(Tag.objects.get(name="Docling: Table"), doc.tags.all())
+
+        # Check custom field mapping with synonym
+        instance = CustomFieldInstance.objects.get(document=doc, field=field)
+        self.assertEqual(instance.value, 999)
