@@ -280,7 +280,7 @@ class AIConfig(BaseConfig):
 
         self.llm_backend = (
             getattr(app_config, "llm_backend", None)
-            or getattr(settings, "LL_BACKEND", None)
+            or getattr(settings, "LLM_BACKEND", None)
             or "ollama"
         )
         self.llm_model = getattr(app_config, "llm_model", None) or getattr(

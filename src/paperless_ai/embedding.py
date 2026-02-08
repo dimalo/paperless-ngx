@@ -16,7 +16,6 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 
 from documents.models import Document
-from documents.models import Note
 from paperless.config import AIConfig
 from paperless.models import LLMEmbeddingBackend
 
@@ -263,7 +262,7 @@ def build_llm_index_text(doc: Document) -> str:
         f"Correspondent: {doc.correspondent.name if doc.correspondent else ''}",
         f"Storage Path: {doc.storage_path.name if doc.storage_path else ''}",
         f"Archive Serial Number: {doc.archive_serial_number or ''}",
-        f"Notes: {','.join([str(c.note) for c in Note.objects.filter(document=doc)])}",
+        f"Notes: {','.join([str(n.note) for n in doc.notes.all()])}",
     ]
 
     for instance in doc.custom_fields.all():  # type: ignore

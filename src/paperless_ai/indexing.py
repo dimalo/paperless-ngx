@@ -191,7 +191,16 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
     """
     VectorStoreFactory.setup_vector_store()
 
-    documents = Document.objects.all()
+    documents = Document.objects.select_related(
+        "correspondent",
+        "document_type",
+        "storage_path",
+    ).prefetch_related(
+        "tags",
+        "notes",
+        "custom_fields",
+        "custom_fields__field",
+    )
     if not documents.exists():
         return "No documents found to index."
 
@@ -216,13 +225,19 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
                 show_progress=not progress_bar_disable,
             )
         else:
+            # Postgres / Vector Store
             index = VectorStoreIndex.from_vector_store(
                 vector_store=storage_context.vector_store,
                 embed_model=embed_model,
             )
+            # If rebuilding Postgres, we should ideally truncate but at least
+            # we can batch insert.
+            nodes = []
             for document in tqdm(documents, disable=progress_bar_disable):
-                remove_document_from_index(document, index)
-                index.insert_nodes(build_document_node(document))
+                nodes.extend(build_document_node(document))
+
+            if nodes:
+                index.insert_nodes(nodes)
 
         msg = "LLM index rebuilt successfully."
     else:

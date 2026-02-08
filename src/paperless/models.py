@@ -474,6 +474,53 @@ class ApplicationConfiguration(AbstractSingletonModel):
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
     )
 
+    force_ai_update = models.BooleanField(
+        verbose_name=_("Force AI update"),
+        null=True,
+        default=False,
+    )
+
+    rollback_enabled = models.BooleanField(
+        verbose_name=_("Enable rollback"),
+        null=True,
+        default=True,
+    )
+
+    rollback_retention_days = models.PositiveIntegerField(
+        verbose_name=_("Rollback retention days"),
+        null=True,
+        default=30,
+        validators=[MinValueValidator(1)],
+    )
+
+    audit_log_level = models.CharField(
+        verbose_name=_("Audit log level"),
+        null=True,
+        blank=True,
+        max_length=16,
+        default="INFO",
+    )
+
+    rate_limit_requests = models.PositiveIntegerField(
+        verbose_name=_("Rate limit requests"),
+        null=True,
+        default=100,
+        validators=[MinValueValidator(1)],
+    )
+
+    rate_limit_window = models.PositiveIntegerField(
+        verbose_name=_("Rate limit window"),
+        null=True,
+        default=60,
+        validators=[MinValueValidator(1)],
+    )
+
+    graceful_degradation = models.BooleanField(
+        verbose_name=_("Graceful degradation"),
+        null=True,
+        default=True,
+    )
+
     docling_force_ocr = models.BooleanField(
         verbose_name=_("Docling force OCR"),
         null=True,

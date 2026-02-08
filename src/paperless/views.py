@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import socket
 from collections import OrderedDict
@@ -62,30 +63,45 @@ logger = logging.getLogger("paperless.views")
 def is_safe_url(url):
     """
     Basic SSRF protection: block local/private IP ranges.
+    Handles IPv4, IPv6 and prevents DNS rebinding by returning (is_safe, resolved_ip).
     """
     try:
         parsed = urlparse(url)
         if not parsed.scheme or parsed.scheme not in ["http", "https"]:
-            return False
+            return False, None
 
         hostname = parsed.hostname
         if not hostname:
-            return False
+            return False, None
 
-        # Resolve to IP to check for internal ranges
-        ip = socket.gethostbyname(hostname)
+        # Resolve all IPs for the hostname to prevent rebinding bypass
+        ips = []
+        try:
+            # Check if it's already an IP literal
+            ips.append(ipaddress.ip_address(hostname))
+        except ValueError:
+            # Resolve hostname
+            addr_infos = socket.getaddrinfo(hostname, None)
+            for info in addr_infos:
+                ips.append(ipaddress.ip_address(info[4][0]))
 
-        # Block loopback, private networks, and link-local
-        parts = list(map(int, ip.split(".")))
-        return not (
-            parts[0] == 127
-            or parts[0] == 10
-            or (parts[0] == 172 and 16 <= parts[1] <= 31)
-            or (parts[0] == 192 and parts[1] == 168)
-            or (parts[0] == 169 and parts[1] == 254)
-        )
+        if not ips:
+            return False, None
+
+        for ip in ips:
+            if (
+                ip.is_loopback
+                or ip.is_private
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_unspecified
+            ):
+                return False, None
+
+        # Return True and the first resolved IP to pin it
+        return True, str(ips[0])
     except Exception:
-        return False
+        return False, None
 
 
 class LLMProxyView(GenericAPIView):
@@ -138,11 +154,18 @@ class LLMProxyView(GenericAPIView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
 
-        if endpoint and not is_safe_url(endpoint):
+        safe, resolved_ip = is_safe_url(endpoint) if endpoint else (True, None)
+        if endpoint and not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
                 status=403,
             )
+
+        # Pin endpoint to resolved IP to prevent DNS rebinding
+        if endpoint and resolved_ip:
+            parsed = urlparse(endpoint)
+            port_str = f":{parsed.port}" if parsed.port else ""
+            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
 
         backend = request.query_params.get("backend")
 
@@ -178,11 +201,18 @@ class LLMProxyView(GenericAPIView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
 
-        if endpoint and not is_safe_url(endpoint):
+        safe, resolved_ip = is_safe_url(endpoint) if endpoint else (True, None)
+        if endpoint and not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
                 status=403,
             )
+
+        # Pin endpoint to resolved IP to prevent DNS rebinding
+        if endpoint and resolved_ip:
+            parsed = urlparse(endpoint)
+            port_str = f":{parsed.port}" if parsed.port else ""
+            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
 
         backend = request.data.get("backend") or "ollama"
         api_key = request.data.get("api_key")
@@ -243,14 +273,26 @@ class OllamaProxyView(LLMProxyView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
         if not endpoint:
-            return HttpResponseBadRequest("Ollama endpoint not configured")
-        if not is_safe_url(endpoint):
+            return HttpResponseBadRequest(b"Ollama endpoint not configured")
+
+        safe, resolved_ip = is_safe_url(endpoint)
+        if not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
                 status=403,
             )
 
+        # Pin endpoint to resolved IP to prevent DNS rebinding
+        if resolved_ip:
+            parsed = urlparse(endpoint)
+            port_str = f":{parsed.port}" if parsed.port else ""
+            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
+
         path = path or "api/tags"
+        # Prevent traversal
+        if ".." in path.split("/"):
+            return Response({"error": "Invalid path"}, status=400)
+
         try:
             url = f"{endpoint}/{path}"
             params = request.GET.copy()
@@ -268,14 +310,26 @@ class OllamaProxyView(LLMProxyView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
         if not endpoint:
-            return HttpResponseBadRequest("Ollama endpoint not configured")
-        if not is_safe_url(endpoint):
+            return HttpResponseBadRequest(b"Ollama endpoint not configured")
+
+        safe, resolved_ip = is_safe_url(endpoint)
+        if not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
                 status=403,
             )
 
+        # Pin endpoint to resolved IP to prevent DNS rebinding
+        if resolved_ip:
+            parsed = urlparse(endpoint)
+            port_str = f":{parsed.port}" if parsed.port else ""
+            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
+
         path = path or "api/generate"
+        # Prevent traversal
+        if ".." in path.split("/"):
+            return Response({"error": "Invalid path"}, status=400)
+
         try:
             url = f"{endpoint}/{path}"
             data = request.data.copy()
@@ -293,17 +347,24 @@ class DoclingProxyView(GenericAPIView):
     def get(self, request, *args, **kwargs):
         endpoint = request.query_params.get("endpoint")
         if not endpoint:
-            return HttpResponseBadRequest("Missing endpoint parameter")
+            return HttpResponseBadRequest(b"Missing endpoint parameter")
 
         if not endpoint.startswith("http"):
             endpoint = f"http://{endpoint}"
         endpoint = endpoint.rstrip("/")
 
-        if not is_safe_url(endpoint):
+        safe, resolved_ip = is_safe_url(endpoint)
+        if not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
                 status=403,
             )
+
+        # Pin endpoint to resolved IP to prevent DNS rebinding
+        if resolved_ip:
+            parsed = urlparse(endpoint)
+            port_str = f":{parsed.port}" if parsed.port else ""
+            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
 
         try:
             try:
