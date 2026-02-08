@@ -811,3 +811,15 @@ class SocialAccountProvidersView(GenericAPIView):
             ]
 
         return Response(sorted(resp, key=lambda p: p["name"]))
+
+
+class HealthCheckView(View):
+    """
+    Simple health check endpoint for Kubernetes probes.
+    Does not require authentication.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+
+        return HttpResponse("OK", content_type="text/plain", status=200)

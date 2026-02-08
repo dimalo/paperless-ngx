@@ -53,6 +53,7 @@ from paperless.views import DoclingProxyView
 from paperless.views import FaviconView
 from paperless.views import GenerateAuthTokenView
 from paperless.views import GroupViewSet
+from paperless.views import HealthCheckView
 from paperless.views import LLMProxyView
 from paperless.views import OllamaProxyView
 from paperless.views import PaperlessObtainAuthTokenView
@@ -295,6 +296,8 @@ urlpatterns = [
         ),
         # TODO: with localization, this is even worse! :/
     ),
+    # Health check endpoint for Kubernetes probes (no authentication required)
+    re_path(r"^api/health/$", HealthCheckView.as_view(), name="health_check"),
     # App logo
     re_path(r"^logo(?:/(?P<filename>.+))?/?$", serve_logo, name="app_logo"),
     # allauth
