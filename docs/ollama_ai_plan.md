@@ -29,7 +29,7 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 ### Configuration Defaults
 
 -   **Embedding Endpoint**: Defaults to `LLM_ENDPOINT` if not explicitly configured
--   **Embedding Model**: `nomic-embed-text:latest` (v2) for Ollama
+-   **Embedding Model**: `nomic-embed-text:latest` (v2) or `qwen3-embedding:latest` (Recommended for higher accuracy)
 -   **System Prompt**: Prepopulate with current hardcoded default, editable with reset button
 -   **Timeouts**: Default 120s, but configurable via `llm_timeout` setting (up to 300s+ for CPU users).
 
@@ -69,9 +69,12 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 ### 3. Ollama Embedding Backend (`src/paperless_ai/embedding.py`)
 
 -   **Implementation:** Port `LiteLLMEmbedding` class to handle Ollama embedding calls via `litellm.embedding`.
--   **Default Model:** `nomic-embed-text:latest` (v2, 768 dimensions).
+-   **Supported Models:**
+    -   `nomic-embed-text`: Efficient, 768-dim, great context window.
+    -   `qwen3-embedding`: Latest SOTA, available in 0.6B, 4B, 8B variants for high-accuracy semantic search.
+    -   `mxbai-embed-large`: High-performing 1024-dim model.
 -   **Efficiency:** Implement parallel batch processing for initial document indexing.
--   **Dimension Discovery:** Logic to fetch embedding dimensions via Ollama's `/api/show` endpoint if `meta.json` missing.
+-   **Dimension Discovery:** Logic to fetch embedding dimensions via Ollama's `/api/show` endpoint if `meta.json` missing (crucial for models like Qwen3 which vary by size).
 -   **Model Change Detection:** Check stored dimension in `meta.json`, warn if mismatch detected.
 
 ---
