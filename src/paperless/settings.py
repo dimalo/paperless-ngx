@@ -1225,6 +1225,9 @@ OCR_USER_ARGS = os.getenv("PAPERLESS_OCR_USER_ARGS")
 
 OCR_ENGINE = os.getenv("PAPERLESS_OCR_ENGINE", "tesseract")
 
+# OCR Engine Priority list for modular broker (comma-separated, e.g., "tesseract,docling_local,ollama")
+OCR_ENGINE_PRIORITY = os.getenv("PAPERLESS_OCR_ENGINE_PRIORITY", "tesseract")
+
 INSTALLED_APPS.append("paperless_docling.apps.PaperlessDoclingConfig")
 INSTALLED_APPS.append("paperless_ollama.apps.PaperlessOllamaConfig")
 
