@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("paperless", "0006_applicationconfiguration_barcode_tag_split"),
+        ("paperless", "0006_applicationconfiguration_docling_endpoint_and_more"),
         ("paperless", "0012_applicationconfiguration_ai_system_prompt_and_more"),
     ]
 
