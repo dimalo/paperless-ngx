@@ -1,5 +1,6 @@
 from tempfile import TemporaryDirectory
 from unittest import mock
+from unittest.mock import patch
 
 from django.apps import apps
 from django.test import TestCase
@@ -128,6 +129,7 @@ class TestParserDiscovery(TestCase):
 
 
 class TestParserAvailability(TestCase):
+    @override_settings(PAPERLESS_OCR_ENGINE="tesseract", OCR_ENGINE="tesseract")
     def test_tesseract_parser(self) -> None:
         """
         GIVEN:
@@ -225,4 +227,105 @@ class TestParserAvailability(TestCase):
     def test_file_extension_support(self) -> None:
         self.assertTrue(is_file_ext_supported(".pdf"))
         self.assertFalse(is_file_ext_supported(".hsdfh"))
-        self.assertFalse(is_file_ext_supported(""))
+        self.assertFalse(is_file_ext_supported(".nonexistent"))
+
+
+class TestImagePreprocessing(TestCase):
+    def setUp(self):
+        self.parser = RasterisedDocumentParser(logging_group=None)
+
+    def test_deskew_image_opencv(self):
+        # Mock cv2 functions using sys.modules because it is imported locally
+        mock_cv2 = mock.Mock()
+        mock_cv2.THRESH_BINARY = 0
+        mock_cv2.THRESH_OTSU = 8
+        mock_img = mock.Mock()
+        mock_img.shape = (100, 100, 3)
+        mock_cv2.imread.return_value = mock_img
+        mock_cv2.cvtColor.return_value = "mock_gray"
+        mock_cv2.bitwise_not.return_value = "mock_not"
+        mock_cv2.threshold.return_value = ("mock_thresh", "mock_thresh_img")
+        mock_cv2.findNonZero.return_value = "mock_coords"
+        mock_cv2.minAreaRect.return_value = ((), (), 45)  # angle > -45
+        mock_cv2.getRotationMatrix2D.return_value = "mock_M"
+        mock_cv2.warpAffine.return_value = "mock_rotated"
+        mock_cv2.imwrite.return_value = None
+
+        with patch.dict("sys.modules", {"cv2": mock_cv2}):
+            # Test deskew
+            # We need to ensure that the method deskew_image_opencv re-imports cv2 from our mock
+            # Since sys.modules is patched, 'import cv2' inside the method should return mock_cv2
+            image_path = self.parser.tempdir / "test_image.png"
+            deskewed_path = self.parser.deskew_image_opencv(image_path)
+            mock_cv2.imwrite.assert_called_once_with(str(deskewed_path), "mock_rotated")
+
+    @patch("PIL.Image.open")
+    def test_sharpen_image_pillow(self, mock_image_open):
+        mock_img = mock.Mock()
+        mock_img.format = "PNG"
+        mock_sharpened = mock.Mock()
+        mock_img.filter.return_value = mock_sharpened
+        mock_image_open.return_value.__enter__.return_value = mock_img
+
+        image_path = self.parser.tempdir / "test_image.png"
+        sharpened_path = self.parser.sharpen_image_pillow(image_path)
+        mock_sharpened.save.assert_called_once_with(
+            sharpened_path,
+            format=mock_img.format,
+        )
+        mock_img.filter.assert_called_once()
+
+    def test_preprocess_image_no_processing(self):
+        # Test when settings disable sharpening and alignment
+        self.parser.settings.sharpen = False
+        self.parser.settings.custom_alignment = False
+        image_path = self.parser.tempdir / "test_image.png"
+        processed_path = self.parser.preprocess_image(image_path)
+        self.assertEqual(processed_path, image_path)
+
+    def test_preprocess_image_with_sharpen(self):
+        self.parser.settings.sharpen = True
+        self.parser.settings.custom_alignment = False
+        with patch.object(
+            self.parser,
+            "sharpen_image_pillow",
+            return_value=self.parser.tempdir / "sharpened.png",
+        ) as mock_sharpen:
+            image_path = self.parser.tempdir / "test_image.png"
+            processed_path = self.parser.preprocess_image(image_path)
+            mock_sharpen.assert_called_once_with(image_path)
+            self.assertEqual(processed_path, self.parser.tempdir / "sharpened.png")
+
+    def test_preprocess_image_with_alignment(self):
+        self.parser.settings.sharpen = False
+        self.parser.settings.custom_alignment = True
+        with patch.object(
+            self.parser,
+            "deskew_image_opencv",
+            return_value=self.parser.tempdir / "deskewed.png",
+        ) as mock_deskew:
+            image_path = self.parser.tempdir / "test_image.png"
+            processed_path = self.parser.preprocess_image(image_path)
+            mock_deskew.assert_called_once_with(image_path)
+            self.assertEqual(processed_path, self.parser.tempdir / "deskewed.png")
+
+    def test_preprocess_image_with_both(self):
+        self.parser.settings.sharpen = True
+        self.parser.settings.custom_alignment = True
+        with (
+            patch.object(
+                self.parser,
+                "sharpen_image_pillow",
+                return_value=self.parser.tempdir / "sharpened.png",
+            ) as mock_sharpen,
+            patch.object(
+                self.parser,
+                "deskew_image_opencv",
+                return_value=self.parser.tempdir / "deskewed.png",
+            ) as mock_deskew,
+        ):
+            image_path = self.parser.tempdir / "test_image.png"
+            processed_path = self.parser.preprocess_image(image_path)
+            mock_sharpen.assert_called_once_with(image_path)
+            mock_deskew.assert_called_once_with(self.parser.tempdir / "sharpened.png")
+            self.assertEqual(processed_path, self.parser.tempdir / "deskewed.png")

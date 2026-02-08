@@ -1,6 +1,6 @@
 import logging
-import multiprocessing
 import shutil
+from multiprocessing.dummy import Pool as ThreadPool
 
 import tqdm
 from django import db
@@ -74,7 +74,11 @@ class Command(MultiProcessMixin, ProgressBarMixin, BaseCommand):
             for doc_id in ids:
                 _process_document(doc_id)
         else:  # pragma: no cover
-            with multiprocessing.Pool(processes=self.process_count) as pool:
+            # Use a ThreadPool instead of a Process Pool. The work is
+            # primarily subprocess-bound (ImageMagick), so threads are
+            # efficient enough and avoid issues with Django's app registry
+            # in spawned processes (especially on macOS).
+            with ThreadPool(processes=self.process_count) as pool:
                 list(
                     tqdm.tqdm(
                         pool.imap_unordered(_process_document, ids),

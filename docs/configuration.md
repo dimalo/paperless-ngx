@@ -964,6 +964,131 @@ they use underscores instead of dashes.
     {"deskew": true, "optimize": 3, "unpaper_args": "--pre-rotate 90"}
     ```
 
+#### [`PAPERLESS_OCR_ENGINE=<engine>`](#PAPERLESS_OCR_ENGINE) {#PAPERLESS_OCR_ENGINE}
+
+: Specify the OCR engine to use for document processing. Available options are:
+
+    - `tesseract` (default): Use the built-in Tesseract OCR engine.
+    - `docling`: Use the Docling OCR backend.
+    - `ollama`: Use the Ollama OCR backend.
+
+    Defaults to `tesseract`.
+
+### Docling OCR Backend
+
+Paperless can use Docling as an alternative OCR backend via the docling-serve API service.
+
+#### Setup
+
+1. Run docling-serve in Docker:
+
+    ```bash
+    docker run --name docling-serve -p 5001:5001 ds4sd/docling-serve:latest
+    ```
+
+2. Configure the following environment variables.
+
+#### [`PAPERLESS_DOCLING_ENDPOINT=<url>`](#PAPERLESS_DOCLING_ENDPOINT) {#PAPERLESS_DOCLING_ENDPOINT}
+
+: The URL of the docling-serve instance.
+
+    Defaults to `http://localhost:5001`.
+
+#### [`PAPERLESS_DOCLING_TIMEOUT=<int>`](#PAPERLESS_DOCLING_TIMEOUT) {#PAPERLESS_DOCLING_TIMEOUT}
+
+: Request timeout in seconds.
+
+    Defaults to 30.
+
+#### [`PAPERLESS_DOCLING_FORCE_OCR=<bool>`](#PAPERLESS_DOCLING_FORCE_OCR) {#PAPERLESS_DOCLING_FORCE_OCR}
+
+: Force OCR even on documents with existing text.
+
+    Defaults to false.
+
+#### [`PAPERLESS_DOCLING_LANGUAGE=<lang>`](#PAPERLESS_DOCLING_LANGUAGE) {#PAPERLESS_DOCLING_LANGUAGE}
+
+: OCR language for text recognition.
+
+    Defaults to "eng".
+
+#### Usage
+
+Set `PAPERLESS_OCR_ENGINE=docling` to use this backend.
+
+#### Notes
+
+-   API-based backend.
+-   Supports PDF and image MIME types.
+-   Performance considerations for large files (>10MB uses async polling).
+
+### Ollama OCR Backend
+
+Paperless can use Ollama as an OCR backend using vision models like deepseek-ocr or glm-ocr.
+
+#### Setup
+
+1. Install Ollama:
+
+    ```bash
+    # On Linux/macOS
+    curl -fsSL https://ollama.ai/install.sh | sh
+    ```
+
+2. Pull an OCR model (choose one):
+
+    ```bash
+    # Option 1: DeepSeek OCR (default)
+    ollama pull deepseek-ocr
+
+    # Option 2: GLM OCR (lightweight, fast)
+    ollama pull glm-ocr
+    ```
+
+3. Start Ollama service:
+
+    ```bash
+    ollama serve
+    ```
+
+4. Configure the following environment variables.
+
+#### [`PAPERLESS_OLLAMA_ENDPOINT=<url>`](#PAPERLESS_OLLAMA_ENDPOINT) {#PAPERLESS_OLLAMA_ENDPOINT}
+
+: The URL of the Ollama instance.
+
+    Defaults to `http://localhost:11434`.
+
+#### [`PAPERLESS_OLLAMA_MODEL=<model>`](#PAPERLESS_OLLAMA_MODEL) {#PAPERLESS_OLLAMA_MODEL}
+
+: The model name to use. Supported models:
+
+    - `deepseek-ocr` (default) - High accuracy OCR with bounding box coordinates
+    - `glm-ocr` - Lightweight (0.9B params), fast, good for documents and tables
+    - Other vision models (e.g., `llava`, `llama3.2-vision`) may work but are not optimized
+
+#### [`PAPERLESS_OLLAMA_TIMEOUT=<int>`](#PAPERLESS_OLLAMA_TIMEOUT) {#PAPERLESS_OLLAMA_TIMEOUT}
+
+: Request timeout in seconds.
+
+    Defaults to 30.
+
+#### [`PAPERLESS_OLLAMA_PROMPT_TEMPLATE=<template>`](#PAPERLESS_OLLAMA_PROMPT_TEMPLATE) {#PAPERLESS_OLLAMA_PROMPT_TEMPLATE}
+
+: Custom prompt template.
+
+    Defaults to "".
+
+#### Usage
+
+Set `PAPERLESS_OCR_ENGINE=ollama` to use this backend.
+
+#### Notes
+
+-   API-based backend.
+-   Supports image and PDF MIME types (PDFs converted to images per page).
+-   Performance considerations for large files.
+
 ## Software tweaks {#software_tweaks}
 
 #### [`PAPERLESS_TASK_WORKERS=<num>`](#PAPERLESS_TASK_WORKERS) {#PAPERLESS_TASK_WORKERS}
@@ -1986,3 +2111,128 @@ current backend. If not supplied, defaults to "gpt-3.5-turbo" for OpenAI and "ll
 AI is enabled and the LLM embedding backend is set.
 
     Defaults to `10 2 * * *`, once per day.
+
+## AI Enhancement Settings {#ai-enhancement}
+
+Paperless-ngx includes AI-powered automatic metadata enhancement features that can automatically suggest and apply document metadata during consumption. These features include confidence-based auto-assignment, manual review queues, and rollback capabilities.
+
+### Auto-Enhancement Configuration
+
+#### [`PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI\_\_ENABLE_AUTO_AI_ENHANCEMENT}
+
+: Enables automatic AI metadata enhancement during document consumption. When enabled, Paperless will use AI to suggest titles, tags, correspondents, document types, and storage paths for newly consumed documents.
+
+    !!! warning
+        This feature sends document content to external AI services. Ensure compliance with your data protection policies and service terms.
+
+    Defaults to `false`.
+
+#### [`PAPERLESS_AI__CONFIDENCE_THRESHOLD=<float>`](#PAPERLESS_AI__CONFIDENCE_THRESHOLD) {#PAPERLESS_AI\_\_CONFIDENCE_THRESHOLD}
+
+: Minimum confidence score (0.0-1.0) required for automatic application of AI suggestions. Suggestions with confidence scores above this threshold will be automatically applied to documents during consumption.
+
+    - Title, tags, correspondents, document types, and storage paths are evaluated separately
+    - Only unset fields on documents will be auto-assigned
+    - Values below 0.5 are ignored entirely
+
+    Defaults to `0.7`.
+
+#### [`PAPERLESS_AI__AUTO_CREATE_THRESHOLD=<float>`](#PAPERLESS_AI__AUTO_CREATE_THRESHOLD) {#PAPERLESS_AI\_\_AUTO_CREATE_THRESHOLD}
+
+: Minimum confidence score (0.0-1.0) required for automatic creation of new tags, correspondents, document types, and storage paths. If a suggested item doesn't exist and the confidence meets this threshold, it will be created automatically.
+
+    - Only applies to tags, correspondents, document types, and storage paths
+    - Titles are never auto-created (they use existing document titles or generate new ones)
+    - Lower values increase the likelihood of creating unwanted metadata items
+
+    Defaults to `0.8`.
+
+### Review Queue Configuration
+
+#### [`PAPERLESS_AI__REVIEW_THRESHOLD_MIN=<float>`](#PAPERLESS_AI__REVIEW_THRESHOLD_MIN) {#PAPERLESS_AI\_\_REVIEW_THRESHOLD_MIN}
+
+: Minimum confidence score (0.0-1.0) for suggestions to be queued for manual review. Suggestions with confidence scores in the review range will be added to the AI review queue instead of being auto-applied or ignored.
+
+    - Must be less than `PAPERLESS_AI__CONFIDENCE_THRESHOLD`
+    - Suggestions between this value and the confidence threshold require manual approval
+
+    Defaults to `0.5`.
+
+### Safety and Rate Limiting
+
+#### [`PAPERLESS_AI__GRACEFUL_DEGRADATION=<bool>`](#PAPERLESS_AI__GRACEFUL_DEGRADATION) {#PAPERLESS_AI\_\_GRACEFUL_DEGRADATION}
+
+: Enables graceful degradation when AI services are unavailable. When enabled, document consumption will continue normally if AI services fail, with warnings logged. When disabled, AI service failures will cause consumption to fail.
+
+    Defaults to `true`.
+
+#### [`PAPERLESS_AI__RATE_LIMIT_REQUESTS=<int>`](#PAPERLESS_AI__RATE_LIMIT_REQUESTS) {#PAPERLESS_AI\_\_RATE_LIMIT_REQUESTS}
+
+: Maximum number of AI requests allowed per user per hour. This helps prevent excessive API usage and costs.
+
+    - Set to 0 to disable rate limiting
+    - Rate limits are tracked per user to ensure fair usage
+
+    Defaults to `100`.
+
+### Rollback Configuration
+
+#### [`PAPERLESS_AI__ENABLE_ROLLBACK=<bool>`](#PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT) {#PAPERLESS_AI\_\_ENABLE_ROLLBACK}
+
+: Enables rollback functionality for AI-applied suggestions. When enabled, users can undo AI-applied metadata changes through the admin interface.
+
+    - History of all AI applications is maintained
+    - Rollback restores document state to before AI suggestions were applied
+    - Requires appropriate user permissions
+
+    Defaults to `true`.
+
+### Setup and Usage
+
+#### Basic Setup
+
+1. Enable AI features by setting `PAPERLESS_AI_ENABLED=true`
+2. Configure your AI backend (`PAPERLESS_AI_LLM_BACKEND`) and model
+3. Enable auto-enhancement: `PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=true`
+4. Adjust confidence thresholds based on your requirements:
+    - Lower thresholds (e.g., 0.6) for more automation but higher risk of errors
+    - Higher thresholds (e.g., 0.8) for higher accuracy but more manual review
+
+#### Example Configuration
+
+```bash
+# Enable AI features
+PAPERLESS_AI_ENABLED=true
+PAPERLESS_AI_LLM_BACKEND=openai
+PAPERLESS_AI_LLM_MODEL=gpt-4
+PAPERLESS_AI_LLM_API_KEY=your-api-key-here
+
+# Enable auto-enhancement with balanced settings
+PAPERLESS_AI__ENABLE_AUTO_AI_ENHANCEMENT=true
+PAPERLESS_AI__CONFIDENCE_THRESHOLD=0.7
+PAPERLESS_AI__AUTO_CREATE_THRESHOLD=0.8
+PAPERLESS_AI__REVIEW_THRESHOLD_MIN=0.5
+
+# Safety settings
+PAPERLESS_AI__GRACEFUL_DEGRADATION=true
+PAPERLESS_AI__RATE_LIMIT_REQUESTS=50
+PAPERLESS_AI__ENABLE_ROLLBACK=true
+```
+
+#### Security Considerations
+
+-   **API Keys**: Store AI API keys securely and rotate them regularly
+-   **Data Privacy**: AI services may store or process your document data
+-   **Rate Limiting**: Monitor usage to avoid unexpected costs
+-   **Permissions**: Only trusted users should have access to AI review and rollback features
+-   **Audit Trail**: All AI actions are logged and can be audited
+
+#### Troubleshooting
+
+**Common Issues:**
+
+-   **High rate of review queue items**: Lower `PAPERLESS_AI__CONFIDENCE_THRESHOLD` or increase `PAPERLESS_AI__REVIEW_THRESHOLD_MIN`
+-   **Too many auto-created items**: Increase `PAPERLESS_AI__AUTO_CREATE_THRESHOLD`
+-   **AI service timeouts**: Check network connectivity and consider increasing API timeouts
+-   **Permission errors**: Ensure users have appropriate permissions for document editing
+-   **Rate limit exceeded**: Increase `PAPERLESS_AI__RATE_LIMIT_REQUESTS` or implement usage monitoring

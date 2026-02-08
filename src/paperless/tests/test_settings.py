@@ -396,12 +396,13 @@ class TestDBSettings(TestCase):
         ):
             databases = _parse_db_settings()
 
-            self.assertDictEqual(
-                {
-                    "timeout": 10.0,
-                },
-                databases["default"]["OPTIONS"],
-            )
+            if databases["default"]["ENGINE"] == "django.db.backends.sqlite3":
+                self.assertEqual(databases["default"]["OPTIONS"]["timeout"], 10.0)
+            else:
+                self.assertEqual(
+                    databases["default"]["OPTIONS"]["connect_timeout"],
+                    10.0,
+                )
 
     def test_db_timeout_with_not_sqlite(self) -> None:
         """
@@ -421,19 +422,8 @@ class TestDBSettings(TestCase):
         ):
             databases = _parse_db_settings()
 
-            self.assertDictEqual(
-                databases["default"]["OPTIONS"],
-                databases["default"]["OPTIONS"]
-                | {
-                    "connect_timeout": 10.0,
-                },
-            )
-            self.assertDictEqual(
-                {
-                    "timeout": 10.0,
-                },
-                databases["sqlite"]["OPTIONS"],
-            )
+            self.assertEqual(databases["default"]["OPTIONS"]["connect_timeout"], 10.0)
+            self.assertEqual(databases["sqlite"]["OPTIONS"]["timeout"], 10.0)
 
 
 class TestPaperlessURLSettings(TestCase):

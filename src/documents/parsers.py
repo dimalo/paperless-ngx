@@ -68,6 +68,9 @@ def get_default_file_extension(mime_type: str) -> str:
     """
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         if mime_type in supported_mime_types:
@@ -96,6 +99,9 @@ def get_supported_file_extensions() -> set[str]:
     extensions = set()
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         for mime_type in supported_mime_types:
@@ -110,7 +116,7 @@ def get_supported_file_extensions() -> set[str]:
 
 def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | None:
     """
-    Returns the best parser (by weight) for the given mimetype or
+    Returns the best parser (by weight or OCR engine preference) for the given mimetype or
     None if no parser exists
     """
 
@@ -118,6 +124,9 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
 
     for response in document_consumer_declaration.send(None):
         parser_declaration = response[1]
+        if not parser_declaration:
+            continue
+
         supported_mime_types = parser_declaration["mime_types"]
 
         if mime_type in supported_mime_types:
@@ -126,9 +135,31 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
     if not options:
         return None
 
-    best_parser = sorted(options, key=lambda _: _["weight"], reverse=True)[0]
+    def get_priority(declaration):
+        parser_class = declaration["parser"]
 
-    # Return the parser with the highest weight.
+        # Check Application Configuration first
+        from paperless.models import ApplicationConfiguration
+
+        config = ApplicationConfiguration.objects.first()
+        ocr_engine = (
+            config.ocr_engine
+            if config and config.ocr_engine
+            else getattr(settings, "OCR_ENGINE", "tesseract")
+        )
+
+        if (
+            ocr_engine == "docling" and parser_class.__name__ == "DoclingDocumentParser"
+        ) or (
+            ocr_engine == "ollama" and parser_class.__name__ == "OllamaDocumentParser"
+        ):
+            return 100
+        else:
+            return declaration["weight"]
+
+    best_parser = sorted(options, key=get_priority, reverse=True)[0]
+
+    # Return the parser with the highest priority.
     return best_parser["parser"]
 
 
@@ -330,3 +361,133 @@ class DocumentParser(LoggingMixin):
     def cleanup(self) -> None:
         self.log.debug(f"Deleting directory {self.tempdir}")
         shutil.rmtree(self.tempdir)
+
+
+class ImageDocumentParser(DocumentParser):
+    """
+    Base parser for documents that require image processing (OCR).
+    Provides common utilities for image preprocessing, DPI detection, etc.
+    """
+
+    logging_name = "paperless.parsing.image"
+
+    def is_image(self, mime_type) -> bool:
+        """Check if the given MIME type is a supported image format"""
+        return mime_type in [
+            "image/png",
+            "image/jpeg",
+            "image/tiff",
+            "image/bmp",
+            "image/gif",
+            "image/webp",
+            "image/heic",
+        ]
+
+    def has_alpha(self, image) -> bool:
+        """Check if an image has an alpha channel"""
+        from PIL import Image
+
+        with Image.open(image) as im:
+            return im.mode in ("RGBA", "LA")
+
+    def remove_alpha(self, image_path: str) -> Path:
+        """Remove alpha channel from an image using ImageMagick"""
+        no_alpha_image = Path(self.tempdir) / "image-no-alpha"
+        run_subprocess(
+            [
+                settings.CONVERT_BINARY,
+                "-alpha",
+                "off",
+                image_path,
+                no_alpha_image,
+            ],
+            logger=self.log,
+        )
+        return no_alpha_image
+
+    def get_dpi(self, image) -> int | None:
+        """Extract DPI information from image metadata"""
+        from PIL import Image
+
+        try:
+            with Image.open(image) as im:
+                x, _ = im.info["dpi"]
+                return round(x)
+        except Exception as e:
+            self.log.warning(f"Error while getting DPI from image {image}: {e}")
+            return None
+
+    def calculate_a4_dpi(self, image) -> int | None:
+        """Calculate DPI by assuming the image is A4 sized"""
+        from PIL import Image
+
+        try:
+            with Image.open(image) as im:
+                width, _ = im.size
+                # divide image width by A4 width (210mm) in inches.
+                dpi = int(width / (21 / 2.54))
+                self.log.debug(f"Estimated DPI {dpi} based on image width {width}")
+                return dpi
+
+        except Exception as e:
+            self.log.warning(f"Error while calculating DPI for image {image}: {e}")
+            return None
+
+    def sharpen_image_pillow(self, image_path: Path) -> Path:
+        """
+        Apply unsharp mask to sharpen the image using Pillow.
+        """
+        from PIL import Image
+        from PIL import ImageFilter
+
+        sharpened_path = Path(self.tempdir) / "sharpened_image"
+        with Image.open(image_path) as img:
+            # Apply UnsharpMask filter
+            # PIL requires percent and threshold to be integers
+            sharpened = img.filter(
+                ImageFilter.UnsharpMask(
+                    radius=self.settings.sharpen_radius,
+                    percent=int(self.settings.sharpen_percent),
+                    threshold=int(self.settings.sharpen_threshold),
+                ),
+            )
+            sharpened.save(sharpened_path, format=img.format)
+        return sharpened_path
+
+    def deskew_image_opencv(self, image_path: Path) -> Path:
+        """
+        Deskew the image using OpenCV Hough transform.
+        """
+        import cv2
+
+        deskewed_path = Path(self.tempdir) / "deskewed_image"
+        img = cv2.imread(str(image_path))
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.bitwise_not(gray)
+        thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        coords = cv2.findNonZero(thresh)
+        angle = cv2.minAreaRect(coords)[-1]
+        angle = -(90 + angle) if angle < -45 else -angle
+        (h, w) = img.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        rotated = cv2.warpAffine(
+            img,
+            M,
+            (w, h),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+        cv2.imwrite(str(deskewed_path), rotated)
+        return deskewed_path
+
+    def preprocess_image(self, image_path: Path) -> Path:
+        """
+        Conditionally apply sharpening and deskewing, saving to a temp file.
+        """
+        processed_path = image_path
+        if self.settings.sharpen:
+            processed_path = self.sharpen_image_pillow(processed_path)
+        if self.settings.custom_alignment:
+            processed_path = self.deskew_image_opencv(processed_path)
+        return processed_path

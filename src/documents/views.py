@@ -132,6 +132,8 @@ from documents.matching import match_correspondents
 from documents.matching import match_document_types
 from documents.matching import match_storage_paths
 from documents.matching import match_tags
+from documents.models import AIReviewQueue
+from documents.models import AISuggestionHistory
 from documents.models import Correspondent
 from documents.models import CustomField
 from documents.models import Document
@@ -160,6 +162,8 @@ from documents.permissions import set_permissions_for_object
 from documents.plugins.date_parsing import get_date_parser
 from documents.schema import generate_object_with_permissions_schema
 from documents.serialisers import AcknowledgeTasksViewSerializer
+from documents.serialisers import AIReviewQueueSerializer
+from documents.serialisers import AISuggestionHistorySerializer
 from documents.serialisers import BulkDownloadSerializer
 from documents.serialisers import BulkEditObjectsSerializer
 from documents.serialisers import BulkEditSerializer
@@ -195,6 +199,7 @@ from documents.tasks import llmindex_index
 from documents.tasks import sanity_check
 from documents.tasks import train_classifier
 from documents.tasks import update_document_parent_tags
+from documents.utils import apply_ai_suggestions
 from documents.utils import get_boolean
 from paperless import version
 from paperless.celery import app as celery_app
@@ -1371,6 +1376,266 @@ class DocumentViewSet(
             logger.warning(f"An error occurred emailing documents: {e!s}")
             return HttpResponseServerError(
                 "Error emailing documents, check logs for more detail.",
+            )
+
+    @action(methods=["get"], detail=True, url_path="ai-review")
+    def get_ai_review(self, request, pk=None):
+        """
+        Retrieve pending AI review for a document.
+
+        Returns the AI review queue item if one exists with pending status
+        for the specified document.
+        """
+        doc = get_object_or_404(Document.objects.select_related("owner"), pk=pk)
+        if request.user is not None and not has_perms_owner_aware(
+            request.user,
+            "view_document",
+            doc,
+        ):
+            return HttpResponseForbidden("Insufficient permissions")
+
+        try:
+            review_item = AIReviewQueue.objects.get(
+                document=doc,
+                status=AIReviewQueue.Status.PENDING,
+            )
+            serializer = AIReviewQueueSerializer(
+                review_item,
+                context={"request": request},
+            )
+            return Response(serializer.data)
+        except AIReviewQueue.DoesNotExist:
+            return Response(
+                {"detail": "No pending AI review for this document."},
+                status=404,
+            )
+
+    @action(methods=["post"], detail=True, url_path="ai-review/approve")
+    def approve_ai_review(self, request, pk=None):
+        """
+        Approve and apply AI suggestions for a document.
+
+        Applies the suggestions from the pending review item and marks it as applied.
+        """
+        doc = get_object_or_404(Document.objects.select_related("owner"), pk=pk)
+        if request.user is not None and not has_perms_owner_aware(
+            request.user,
+            "change_document",
+            doc,
+        ):
+            return HttpResponseForbidden("Insufficient permissions")
+
+        try:
+            review_item = AIReviewQueue.objects.get(
+                document=doc,
+                status=AIReviewQueue.Status.PENDING,
+            )
+        except AIReviewQueue.DoesNotExist:
+            return Response(
+                {"detail": "No pending AI review for this document."},
+                status=404,
+            )
+
+        # Apply suggestions
+        apply_ai_suggestions(doc, review_item.suggestions, user=request.user)
+
+        # Mark as applied
+        review_item.status = AIReviewQueue.Status.APPLIED
+        review_item.reviewed_by = request.user
+        review_item.reviewed_at = timezone.now()
+        review_item.save()
+
+        return Response({"detail": "AI suggestions approved and applied."})
+
+    @action(methods=["post"], detail=True, url_path="ai-review/reject")
+    def reject_ai_review(self, request, pk=None):
+        """
+        Reject AI suggestions for a document.
+
+        Marks the review item as rejected without applying suggestions.
+        """
+        doc = get_object_or_404(Document.objects.select_related("owner"), pk=pk)
+        if request.user is not None and not has_perms_owner_aware(
+            request.user,
+            "change_document",
+            doc,
+        ):
+            return HttpResponseForbidden("Insufficient permissions")
+
+        try:
+            review_item = AIReviewQueue.objects.get(
+                document=doc,
+                status=AIReviewQueue.Status.PENDING,
+            )
+        except AIReviewQueue.DoesNotExist:
+            return Response(
+                {"detail": "No pending AI review for this document."},
+                status=404,
+            )
+
+        review_item.status = AIReviewQueue.Status.REJECTED
+        review_item.reviewed_by = request.user
+        review_item.reviewed_at = timezone.now()
+        review_item.save()
+
+        return Response({"detail": "AI suggestions rejected."})
+
+
+class AIReviewQueueViewSet(ModelViewSet, PassUserMixin):
+    """
+    ViewSet for managing AI review queue items.
+
+    Provides CRUD operations for AI review queue items, with bulk approve/reject actions.
+    """
+
+    model = AIReviewQueue
+    queryset = AIReviewQueue.objects.all()
+    serializer_class = AIReviewQueueSerializer
+    pagination_class = StandardPagination
+    permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
+    filter_backends = (
+        DjangoFilterBackend,
+        ObjectOwnedOrGrantedPermissionsFilter,
+    )
+    filterset_fields = ["status", "document"]
+
+    def get_queryset(self):
+        return AIReviewQueue.objects.select_related(
+            "document",
+            "reviewed_by",
+            "owner",
+        ).order_by("-created_at")
+
+    @action(methods=["post"], detail=False, url_path="bulk-approve")
+    def bulk_approve(self, request):
+        """
+        Bulk approve multiple AI review items.
+
+        Expects a list of review item IDs in request data.
+        """
+        ids = request.data.get("ids", [])
+        if not ids:
+            return Response({"detail": "No IDs provided."}, status=400)
+
+        review_items = AIReviewQueue.objects.filter(
+            id__in=ids,
+            status=AIReviewQueue.Status.PENDING,
+        )
+
+        # Check permissions for each item
+        for item in review_items:
+            if not has_perms_owner_aware(
+                request.user,
+                "change_document",
+                item.document,
+            ):
+                return HttpResponseForbidden(
+                    f"Insufficient permissions for document {item.document.id}",
+                )
+
+        # Apply suggestions for each item and mark as applied
+        count = review_items.count()
+        for item in review_items:
+            apply_ai_suggestions(item.document, item.suggestions, user=request.user)
+            item.status = AIReviewQueue.Status.APPLIED
+            item.reviewed_by = request.user
+            item.reviewed_at = timezone.now()
+            item.save()
+
+        return Response({"detail": f"Approved {count} AI review items."})
+
+    @action(methods=["post"], detail=False, url_path="bulk-reject")
+    def bulk_reject(self, request):
+        """
+        Bulk reject multiple AI review items.
+
+        Expects a list of review item IDs in request data.
+        """
+        ids = request.data.get("ids", [])
+        if not ids:
+            return Response({"detail": "No IDs provided."}, status=400)
+
+        review_items = AIReviewQueue.objects.filter(
+            id__in=ids,
+            status=AIReviewQueue.Status.PENDING,
+        )
+
+        # Check permissions for each item
+        for item in review_items:
+            if not has_perms_owner_aware(
+                request.user,
+                "change_document",
+                item.document,
+            ):
+                return HttpResponseForbidden(
+                    f"Insufficient permissions for document {item.document.id}",
+                )
+
+        # Reject items
+        count = review_items.update(
+            status=AIReviewQueue.Status.REJECTED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+
+        return Response({"detail": f"Rejected {count} AI review items."})
+
+
+class AISuggestionHistoryViewSet(ModelViewSet, PassUserMixin):
+    """
+    ViewSet for managing AI suggestion history and rollback operations.
+
+    Provides read-only access to AI suggestion history with rollback functionality
+    restricted to admins and document owners.
+    """
+
+    model = AISuggestionHistory
+    queryset = AISuggestionHistory.objects.all()
+    serializer_class = AISuggestionHistorySerializer
+    pagination_class = StandardPagination
+    permission_classes = (IsAuthenticated, PaperlessObjectPermissions)
+    filter_backends = (
+        DjangoFilterBackend,
+        ObjectOwnedOrGrantedPermissionsFilter,
+    )
+    filterset_fields = ["document", "rolled_back"]
+    http_method_names = ["get", "post"]  # Read-only with rollback action
+
+    def get_queryset(self):
+        return AISuggestionHistory.objects.select_related(
+            "document",
+            "applied_by",
+            "rolled_back_by",
+            "owner",
+        ).order_by("-applied_at")
+
+    @action(methods=["post"], detail=True, url_path="rollback")
+    def rollback(self, request, pk=None):
+        """
+        Rollback applied AI suggestions for a specific history record.
+
+        Only admins or document owners can perform rollback.
+        """
+        history = self.get_object()
+
+        # Permission check: admin or document owner
+        if not (request.user.is_staff or request.user == history.document.owner):
+            return HttpResponseForbidden(
+                "Only admins or document owners can rollback AI suggestions",
+            )
+
+        try:
+            from documents.utils import rollback_ai_suggestions
+
+            rollback_ai_suggestions(history.id, request.user)
+            return Response({"detail": "AI suggestions rolled back successfully."})
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+        except Exception as e:
+            logger.exception(f"Error during rollback of history {history.id}: {e}")
+            return Response(
+                {"detail": "An error occurred during rollback."},
+                status=500,
             )
 
 

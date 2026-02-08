@@ -1,10 +1,12 @@
 import shutil
+import unittest
 from pathlib import Path
 from unittest import mock
 
 from django.core.management import call_command
 from django.test import TestCase
 
+from documents.file_handling import create_source_path_directory
 from documents.management.commands.document_thumbnails import _process_document
 from documents.models import Document
 from documents.parsers import get_default_thumbnail
@@ -12,6 +14,10 @@ from documents.tests.utils import DirectoriesMixin
 from documents.tests.utils import FileSystemAssertsMixin
 
 
+@unittest.skipIf(
+    shutil.which("convert") is None and shutil.which("gs") is None,
+    "ImageMagick (convert) or Ghostscript (gs) not available",
+)
 class TestMakeThumbnails(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
     def make_models(self) -> None:
         self.d1 = Document.objects.create(
@@ -21,6 +27,7 @@ class TestMakeThumbnails(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             mime_type="application/pdf",
             filename="test.pdf",
         )
+        create_source_path_directory(self.d1.source_path)
         shutil.copy(
             Path(__file__).parent / "samples" / "simple.pdf",
             self.d1.source_path,
@@ -33,6 +40,7 @@ class TestMakeThumbnails(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             mime_type="application/pdf",
             filename="test2.pdf",
         )
+        create_source_path_directory(self.d2.source_path)
         shutil.copy(
             Path(__file__).parent / "samples" / "simple.pdf",
             self.d2.source_path,
@@ -45,6 +53,7 @@ class TestMakeThumbnails(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             mime_type="application/pdf",
             filename="test3.pdf",
         )
+        create_source_path_directory(self.d3.source_path)
         shutil.copy(
             Path(__file__).parent / "samples" / "password-is-test.pdf",
             self.d3.source_path,

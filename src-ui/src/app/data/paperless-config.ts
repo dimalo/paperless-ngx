@@ -44,8 +44,9 @@ export enum ConfigOptionType {
   Boolean = 'boolean',
   JSON = 'json',
   File = 'file',
-  Password = 'password',
   Textarea = 'textarea',
+  Password = 'password',
+  Header = 'header',
 }
 
 export const ConfigCategory = {
@@ -66,7 +67,7 @@ export const LLMBackendConfig = {
   OLLAMA: 'ollama',
 }
 
-export const VectorStoreConfig = {
+export const VectorStoreBackendConfig = {
   AUTO: 'auto',
   FAISS: 'faiss',
   POSTGRES: 'postgres',
@@ -98,6 +99,149 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.Select,
     choices: mapToItems(OutputTypeConfig),
     config_key: 'PAPERLESS_OCR_OUTPUT_TYPE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_engine',
+    title: $localize`OCR Engine`,
+    type: ConfigOptionType.Select,
+    choices: [
+      { id: 'tesseract', name: 'Tesseract' },
+      { id: 'docling', name: 'Docling (Local)' },
+      { id: 'docling_server', name: 'Docling Server' },
+      { id: 'ollama', name: 'Ollama' },
+    ],
+    config_key: 'PAPERLESS_OCR_ENGINE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_image_enhancement_header',
+    title: $localize`Image Enhancements`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen',
+    title: $localize`Sharpen Images`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OCR_SHARPEN',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_radius',
+    title: $localize`Sharpen Radius`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_RADIUS',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_percent',
+    title: $localize`Sharpen Percent`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_PERCENT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_sharpen_threshold',
+    title: $localize`Sharpen Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_SHARPEN_THRESHOLD',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_custom_alignment',
+    title: $localize`Custom Alignment`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OCR_CUSTOM_ALIGNMENT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_alignment_threshold',
+    title: $localize`Alignment Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OCR_ALIGNMENT_THRESHOLD',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_header',
+    title: $localize`Docling Settings`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_endpoint',
+    title: $localize`Docling Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_ENDPOINT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_language',
+    title: $localize`Docling Language`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_DOCLING_LANGUAGE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_timeout',
+    title: $localize`Docling Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_DOCLING_TIMEOUT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'docling_force_ocr',
+    title: $localize`Force OCR`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_DOCLING_FORCE_OCR',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_header',
+    title: $localize`Ollama Settings`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_endpoint',
+    title: $localize`Ollama Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_OLLAMA_ENDPOINT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_model',
+    title: $localize`Ollama Model`,
+    type: ConfigOptionType.Select,
+    choices: [],
+    config_key: 'PAPERLESS_OLLAMA_MODEL',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_timeout',
+    title: $localize`Ollama Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_OLLAMA_TIMEOUT',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_prompt_template',
+    title: $localize`Ollama Prompt Template`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_OLLAMA_PROMPT_TEMPLATE',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ollama_ocr_debug_thumbnail',
+    title: $localize`Debug Thumbnails`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_OLLAMA_OCR_DEBUG_THUMBNAIL',
+    category: ConfigCategory.OCR,
+  },
+  {
+    key: 'tesseract_header',
+    title: $localize`Tesseract Settings`,
+    type: ConfigOptionType.Header,
     category: ConfigCategory.OCR,
   },
   {
@@ -286,6 +430,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'PAPERLESS_CONSUMER_TAG_BARCODE_SPLIT',
     category: ConfigCategory.Barcode,
   },
+  // AI Settings
   {
     key: 'ai_enabled',
     title: $localize`AI Enabled`,
@@ -294,36 +439,12 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
     note: $localize`Consider privacy implications when enabling AI features, especially if using a remote model.`,
   },
+  // LLM Configuration
   {
-    key: 'llm_embedding_backend',
-    title: $localize`LLM Embedding Backend`,
-    type: ConfigOptionType.Select,
-    choices: mapToItems(LLMEmbeddingBackendConfig),
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_BACKEND',
+    key: 'ai_llm_header',
+    title: $localize`LLM Configuration`,
+    type: ConfigOptionType.Header,
     category: ConfigCategory.AI,
-  },
-  {
-    key: 'llm_embedding_model',
-    title: $localize`LLM Embedding Model`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
-    category: ConfigCategory.AI,
-  },
-  {
-    key: 'llm_embedding_endpoint',
-    title: $localize`LLM Embedding Endpoint`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT',
-    category: ConfigCategory.AI,
-    note: $localize`Optional. Defaults to main LLM endpoint if not set.`,
-  },
-  {
-    key: 'llm_embedding_api_key',
-    title: $localize`LLM Embedding API Key`,
-    type: ConfigOptionType.Password,
-    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_API_KEY',
-    category: ConfigCategory.AI,
-    note: $localize`Optional. Defaults to main LLM API key if not set.`,
   },
   {
     key: 'llm_backend',
@@ -334,10 +455,10 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'llm_model',
-    title: $localize`LLM Model`,
+    key: 'llm_endpoint',
+    title: $localize`LLM Endpoint`,
     type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_MODEL',
+    config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
     category: ConfigCategory.AI,
   },
   {
@@ -348,43 +469,220 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
-    key: 'llm_endpoint',
-    title: $localize`LLM Endpoint`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
+    key: 'llm_model',
+    title: $localize`LLM Model`,
+    type: ConfigOptionType.Select,
+    choices: [],
+    config_key: 'PAPERLESS_AI_LLM_MODEL',
     category: ConfigCategory.AI,
   },
   {
     key: 'llm_timeout',
-    title: $localize`LLM Timeout`,
+    title: $localize`LLM Timeout (seconds)`,
     type: ConfigOptionType.Number,
     config_key: 'PAPERLESS_AI_LLM_TIMEOUT',
     category: ConfigCategory.AI,
-    note: $localize`Global timeout for LLM and Embedding requests in seconds. Increase for slower local models.`,
+    note: $localize`Global timeout for LLM and Embedding requests.`,
+  },
+  {
+    key: 'ai_system_prompt',
+    title: $localize`System Prompt`,
+    type: ConfigOptionType.Textarea,
+    config_key: 'PAPERLESS_AI_SYSTEM_PROMPT',
+    category: ConfigCategory.AI,
+  },
+  // Embedding Configuration
+  {
+    key: 'ai_embedding_header',
+    title: $localize`Embedding Configuration`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_backend',
+    title: $localize`Embedding Backend`,
+    type: ConfigOptionType.Select,
+    choices: mapToItems(LLMEmbeddingBackendConfig),
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_BACKEND',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_endpoint',
+    title: $localize`Embedding Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_api_key',
+    title: $localize`Embedding API Key`,
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_API_KEY',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_embedding_model',
+    title: $localize`Embedding Model`,
+    type: ConfigOptionType.Select,
+    choices: [],
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_MODEL',
+    category: ConfigCategory.AI,
+  },
+  // Auto-Enhancement
+  {
+    key: 'ai_autotag_header',
+    title: $localize`Auto-Enhancement`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'enable_auto_ai_enhancement',
+    title: $localize`Enable Auto Enhancement`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_AI_AUTO_ASSIGN',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'confidence_threshold',
+    title: $localize`Confidence Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_CONFIDENCE_THRESHOLD',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'auto_create_threshold',
+    title: $localize`Auto Create Threshold`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_AUTO_CREATE_THRESHOLD',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'force_ai_update',
+    title: $localize`Force AI Update`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_AI_FORCE_UPDATE',
+    category: ConfigCategory.AI,
+  },
+  // Safety & Operations
+  {
+    key: 'ai_safety_header',
+    title: $localize`Safety & Operations`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rollback_enabled',
+    title: $localize`Enable Rollback`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_ROLLBACK_ENABLED',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rollback_retention_days',
+    title: $localize`Rollback Retention (Days)`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_ROLLBACK_RETENTION_DAYS',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'graceful_degradation',
+    title: $localize`Graceful Degradation`,
+    type: ConfigOptionType.Boolean,
+    config_key: 'PAPERLESS_GRACEFUL_DEGRADATION',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rate_limit_requests',
+    title: $localize`Rate Limit (Requests)`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_RATE_LIMIT_REQUESTS',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'rate_limit_window',
+    title: $localize`Rate Limit Window (Seconds)`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_RATE_LIMIT_WINDOW',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'audit_log_level',
+    title: $localize`Audit Log Level`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AUDIT_LOG_LEVEL',
+    category: ConfigCategory.AI,
+  },
+  // Vector Store Configuration
+  {
+    key: 'ai_vector_header',
+    title: $localize`Vector Store Configuration`,
+    type: ConfigOptionType.Header,
+    category: ConfigCategory.AI,
   },
   {
     key: 'vector_store_backend',
     title: $localize`Vector Store Backend`,
     type: ConfigOptionType.Select,
-    choices: [
-      { id: 'auto', name: $localize`Automatic` },
-      { id: 'faiss', name: $localize`FAISS (local files)` },
-      { id: 'postgres', name: $localize`Postgres (PGVector)` },
-    ],
+    choices: mapToItems(VectorStoreBackendConfig),
     config_key: 'PAPERLESS_AI_VECTOR_STORE_BACKEND',
     category: ConfigCategory.AI,
   },
   {
-    key: 'ai_system_prompt',
-    title: $localize`AI System Prompt`,
-    type: ConfigOptionType.Textarea,
-    config_key: 'PAPERLESS_AI_SYSTEM_PROMPT',
+    key: 'vector_store_database',
+    title: $localize`Vector Database Name`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_DATABASE',
+    category: ConfigCategory.AI,
+    note: $localize`Defaults to <main-db-name>-vector`,
+  },
+  {
+    key: 'vector_store_host',
+    title: $localize`Vector Database Host`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_HOST',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_port',
+    title: $localize`Vector Database Port`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_PORT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_user',
+    title: $localize`Vector Database User`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_USER',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'vector_store_password',
+    title: $localize`Vector Database Password`,
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_PASSWORD',
     category: ConfigCategory.AI,
   },
 ]
 
 export interface PaperlessConfig extends ObjectWithId {
   output_type: OutputTypeConfig
+  ocr_engine: string
+  ocr_sharpen: boolean
+  ocr_sharpen_radius: number
+  ocr_sharpen_percent: number
+  ocr_sharpen_threshold: number
+  ocr_custom_alignment: boolean
+  ocr_alignment_threshold: number
+  docling_endpoint: string
+  docling_language: string
+  docling_timeout: number
+  docling_force_ocr: boolean
+  ollama_endpoint: string
+  ollama_model: string
+  ollama_timeout: number
+  ollama_prompt_template: string
+  ollama_ocr_debug_thumbnail: boolean
   pages: number
   language: string
   mode: ModeConfig
@@ -412,15 +710,30 @@ export interface PaperlessConfig extends ObjectWithId {
   barcode_tag_mapping: object
   barcode_tag_split: boolean
   ai_enabled: boolean
+  ai_system_prompt: string
   llm_embedding_backend: string
-  llm_embedding_model: string
   llm_embedding_endpoint: string
   llm_embedding_api_key: string
+  llm_embedding_model: string
   llm_backend: string
   llm_model: string
   llm_api_key: string
   llm_endpoint: string
   llm_timeout: number
+  enable_auto_ai_enhancement: boolean
+  confidence_threshold: number
+  auto_create_threshold: number
+  force_ai_update: boolean
+  rollback_enabled: boolean
+  rollback_retention_days: number
+  audit_log_level: string
+  rate_limit_requests: number
+  rate_limit_window: number
+  graceful_degradation: boolean
   vector_store_backend: string
-  ai_system_prompt: string
+  vector_store_database: string
+  vector_store_host: string
+  vector_store_port: number
+  vector_store_user: string
+  vector_store_password: string
 }

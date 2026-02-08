@@ -1,4 +1,5 @@
-import { AsyncPipe } from '@angular/common'
+import { AsyncPipe, NgIf } from '@angular/common'
+import { HttpClient } from '@angular/common/http'
 import { Component, OnDestroy, OnInit, inject } from '@angular/core'
 import {
   AbstractControl,
@@ -16,8 +17,11 @@ import {
   Subscription,
   combineLatest,
   first,
+  merge,
+  of,
   takeUntil,
 } from 'rxjs'
+import { catchError, debounceTime, switchMap } from 'rxjs/operators'
 import {
   ConfigCategory,
   ConfigOption,
@@ -28,6 +32,7 @@ import {
 import { PaperlessTaskName } from 'src/app/data/paperless-task'
 import { ConfigService } from 'src/app/services/config.service'
 import { LLMModel, LLMService } from 'src/app/services/llm.service'
+import { OllamaService } from 'src/app/services/ollama.service'
 import { SettingsService } from 'src/app/services/settings.service'
 import { TasksService } from 'src/app/services/tasks.service'
 import { ToastService } from 'src/app/services/toast.service'
@@ -55,6 +60,7 @@ import { LoadingComponentWithPermissions } from '../../loading-component/loading
     FileComponent,
     PasswordComponent,
     AsyncPipe,
+    NgIf,
     NgbNavModule,
     FormsModule,
     ReactiveFormsModule,
@@ -68,14 +74,22 @@ export class ConfigComponent
   private configService = inject(ConfigService)
   private toastService = inject(ToastService)
   private settingsService = inject(SettingsService)
+  private ollamaService = inject(OllamaService)
   private llmService = inject(LLMService)
   private tasksService = inject(TasksService)
+  private http = inject(HttpClient)
 
   public readonly ConfigOptionType = ConfigOptionType
   public readonly ConfigCategory = ConfigCategory
 
   // generated dynamically
   public configForm = new FormGroup({})
+
+  public testInProgress = {
+    llm_api_key: false,
+    ollama_endpoint: false,
+    docling_endpoint: false,
+  }
 
   public errors = {}
 
@@ -99,7 +113,9 @@ export class ConfigComponent
     super()
     this.configForm.addControl('id', new FormControl())
     PaperlessConfigOptions.forEach((option) => {
-      this.configForm.addControl(option.key, new FormControl())
+      if (option.type !== ConfigOptionType.Header) {
+        this.configForm.addControl(option.key, new FormControl())
+      }
     })
   }
 
@@ -145,13 +161,13 @@ export class ConfigComponent
       this.configForm.get(option.key).updateValueAndValidity()
     })
 
-    // Dynamic model discovery
+    // Dynamic model discovery for AI features
     combineLatest([
       this.configForm.get('llm_backend').valueChanges,
       this.configForm.get('llm_endpoint').valueChanges,
       this.configForm.get('llm_api_key').valueChanges,
     ])
-      .pipe(takeUntil(this.unsubscribeNotifier))
+      .pipe(takeUntil(this.unsubscribeNotifier), debounceTime(500))
       .subscribe(([backend, endpoint, apiKey]) => {
         this.fetchLLMModels(backend, endpoint, apiKey)
       })
@@ -163,13 +179,49 @@ export class ConfigComponent
       this.configForm.get('llm_endpoint').valueChanges,
       this.configForm.get('llm_api_key').valueChanges,
     ])
-      .pipe(takeUntil(this.unsubscribeNotifier))
+      .pipe(takeUntil(this.unsubscribeNotifier), debounceTime(500))
       .subscribe(([backend, endpoint, apiKey, mainEndpoint, mainApiKey]) => {
         this.fetchEmbeddingModels(
           backend,
           endpoint || mainEndpoint,
           apiKey || mainApiKey
         )
+      })
+
+    // Interactive Ollama Model Fetching for OCR
+    merge(
+      this.configForm.get('ollama_endpoint')?.valueChanges,
+      this.configForm.get('ocr_engine')?.valueChanges
+    )
+      .pipe(
+        takeUntil(this.unsubscribeNotifier),
+        debounceTime(500),
+        switchMap((): Observable<{ id: string; name: string }[]> => {
+          const engine = this.configForm.get('ocr_engine')?.value
+          const endpoint = this.configForm.get('ollama_endpoint')?.value
+          if (engine === 'ollama' && endpoint) {
+            return this.ollamaService.getModels(endpoint).pipe(
+              catchError((err) => {
+                this.toastService.showError(
+                  $localize`Failed to fetch OCR models`,
+                  err
+                )
+                return of([])
+              })
+            )
+          }
+          return of([])
+        })
+      )
+      .subscribe({
+        next: (models: { id: string; name: string }[]) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'ollama_model'
+          )
+          if (modelOption) {
+            modelOption.choices = models
+          }
+        },
       })
   }
 
@@ -223,6 +275,41 @@ export class ConfigComponent
       })
   }
 
+  public testConnection(key: string) {
+    this.testInProgress[key] = true
+    const val = this.configForm.value
+
+    let obs: Observable<any>
+    if (key === 'llm_api_key') {
+      obs = this.llmService.testConnection({
+        endpoint: val.llm_endpoint,
+        backend: val.llm_backend,
+        api_key: val.llm_api_key,
+        model: val.llm_model,
+      })
+    } else if (key === 'ollama_endpoint') {
+      obs = this.ollamaService.getModels(val.ollama_endpoint)
+    } else if (key === 'docling_endpoint') {
+      obs = this.http.get(
+        `/api/docling_proxy/?endpoint=${val.docling_endpoint}`
+      )
+    }
+
+    obs?.pipe(first()).subscribe({
+      next: (result) => {
+        this.testInProgress[key] = false
+        this.toastService.showInfo($localize`Connection successful!`)
+        if (key === 'llm_api_key') {
+          this.refreshModels()
+        }
+      },
+      error: (e) => {
+        this.testInProgress[key] = false
+        this.toastService.showError($localize`Connection failed`, e)
+      },
+    })
+  }
+
   ngOnDestroy(): void {
     this.unsubscribeNotifier.next(true)
     this.unsubscribeNotifier.complete()
@@ -241,12 +328,22 @@ export class ConfigComponent
 
       this.isDirty$ = dirtyCheck(this.configForm, this.store.asObservable())
     }
-    this.configForm.patchValue(config)
-
     this.initialConfig = config
 
-    // Trigger initial model fetch
+    // Trigger initial model fetches
     this.refreshModels()
+    const ocrEndpoint = this.configForm.get('ollama_endpoint')?.value
+    if (ocrEndpoint && this.configForm.get('ocr_engine')?.value === 'ollama') {
+      this.ollamaService
+        .getModels(ocrEndpoint)
+        .pipe(first())
+        .subscribe((models) => {
+          const modelOption = PaperlessConfigOptions.find(
+            (o) => o.key === 'ollama_model'
+          )
+          if (modelOption) modelOption.choices = models
+        })
+    }
   }
 
   getDocsUrl(key: string) {

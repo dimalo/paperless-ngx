@@ -14,43 +14,59 @@
                 <a ngbNavLink>{{category}}</a>
                 <ng-template ngbNavContent>
                     <div class="p-3">
-                        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+                        <div class="row g-2">
                             @for (option of getCategoryOptions(category); track option.key) {
-                                <div class="col">
-                                    <div class="card bg-light">
-                                        <div class="card-body">
-                                            <div class="card-title">
-                                                <h6>
-                                                    {{option.title}}
-                                                    <a class="btn btn-sm btn-link" title="Read the documentation about this setting" i18n-title [href]="getDocsUrl(option.config_key)" target="_blank" referrerpolicy="no-referrer">
-                                                        <i-bs  name="info-circle"></i-bs>
-                                                    </a>
-                                                </h6>
-                                            </div>
-                                            <div class="mb-n3">
-                                                @if (option.key === 'llm_model') {
-                                                    <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="llmModels" [allowNull]="true"></pngx-input-select>
-                                                } @else if (option.key === 'llm_embedding_model') {
-                                                    <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="embeddingModels" [allowNull]="true"></pngx-input-select>
-                                                } @else {
-                                                    @switch (option.type) {
-                                                        @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true"></pngx-input-select> }
-                                                        @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false"></pngx-input-number> }
-                                                        @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title></pngx-input-switch> }
-                                                        @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
-                                                        @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
-                                                        @case (ConfigOptionType.Textarea) { <pngx-input-textarea [formControlName]="option.key" [error]="errors[option.key]" [monospace]="true"></pngx-input-textarea> }
-                                                        @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
-                                                        @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
+                                <div [class]="(option.type === ConfigOptionType.Header || option.type === ConfigOptionType.Textarea) ? 'col-12 mt-3 mb-2' : 'col-12 col-md-6 col-lg-4'">
+                                    @if (option.type === ConfigOptionType.Header) {
+                                        <h5 class="border-bottom pb-2 mb-0">{{option.title}}</h5>
+                                    } @else {
+                                        <div class="card bg-light h-100">
+                                            <div class="card-body">
+                                                <div class="card-title">
+                                                    <h6>
+                                                        {{option.title}}
+                                                        <a class="btn btn-sm btn-link" title="Read the documentation about this setting" i18n-title [href]="getDocsUrl(option.config_key)" target="_blank" referrerpolicy="no-referrer">
+                                                            <i-bs  name="info-circle"></i-bs>
+                                                        </a>
+                                                    </h6>
+                                                </div>
+                                                <div class="mb-n3">
+                                                    @if (option.key === 'llm_model') {
+                                                        <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="llmModels" [allowNull]="true"></pngx-input-select>
+                                                    } @else if (option.key === 'llm_embedding_model') {
+                                                        <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="embeddingModels" [allowNull]="true"></pngx-input-select>
+                                                    } @else {
+                                                        @switch (option.type) {
+                                                            @case (ConfigOptionType.Select) { <pngx-input-select [formControlName]="option.key" [error]="errors[option.key]" [items]="option.choices" [allowNull]="true"></pngx-input-select> }
+                                                            @case (ConfigOptionType.Number) { <pngx-input-number [formControlName]="option.key" [error]="errors[option.key]" [showAdd]="false"></pngx-input-number> }
+                                                            @case (ConfigOptionType.Boolean) { <pngx-input-switch [formControlName]="option.key" [error]="errors[option.key]" [showUnsetNote]="true" [horizontal]="true" title="Enable" i18n-title></pngx-input-switch> }
+                                                            @case (ConfigOptionType.String) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
+                                                            @case (ConfigOptionType.JSON) { <pngx-input-text [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-text> }
+                                                            @case (ConfigOptionType.Textarea) { <pngx-input-textarea [formControlName]="option.key" [error]="errors[option.key]" [monospace]="option.key === 'ai_system_prompt'"></pngx-input-textarea> }
+                                                            @case (ConfigOptionType.File) { <pngx-input-file [formControlName]="option.key" (upload)="uploadFile($event, option.key)" [error]="errors[option.key]"></pngx-input-file> }
+                                                            @case (ConfigOptionType.Password) { <pngx-input-password [formControlName]="option.key" [error]="errors[option.key]"></pngx-input-password> }
+                                                        }
                                                     }
+                                                </div>
+                                                @if (option.note) {
+                                                    <div class="form-text fst-italic">{{option.note}}</div>
                                                 }
                                             </div>
-                                            @if (option.note) {
-                                                <div class="form-text fst-italic">{{option.note}}</div>
-                                            }
+                                        </div>
+                                    }
+                                </div>
+                                @if (option.key === 'llm_api_key' || option.key === 'ollama_endpoint' || option.key === 'docling_endpoint') {
+                                    <div class="col-12 col-md-6 col-lg-4">
+                                        <div class="card bg-light h-100">
+                                            <div class="card-body d-flex align-items-center justify-content-center">
+                                                <button type="button" class="btn btn-secondary w-100" (click)="testConnection(option.key)">
+                                                    Test Connection
+                                                    <span *ngIf="testInProgress[option.key]" class="spinner-border spinner-border-sm ms-1"></span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                }
                             }
                         </div>
                         @if (category === ConfigCategory.AI) {

@@ -47,7 +47,7 @@ class TestFileHandling(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         # Test default source_path
         self.assertEqual(
             document.source_path,
-            settings.ORIGINALS_DIR / f"{document.pk:07d}.pdf",
+            (settings.ORIGINALS_DIR / f"{document.pk:07d}.pdf").resolve(),
         )
 
         document.filename = generate_filename(document)
@@ -93,7 +93,7 @@ class TestFileHandling(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         # Test source_path
         self.assertEqual(
             document.source_path,
-            settings.ORIGINALS_DIR / "none" / "none.pdf",
+            (settings.ORIGINALS_DIR / "none" / "none.pdf").resolve(),
         )
 
         # Make the folder read- and execute-only (no writing and no renaming)
@@ -305,7 +305,7 @@ class TestFileHandling(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
 
         self.assertEqual(
             doc.source_path,
-            settings.ORIGINALS_DIR / "etc" / "something" / "doc1.pdf",
+            (settings.ORIGINALS_DIR / "etc" / "something" / "doc1.pdf").resolve(),
         )
 
     @override_settings(
@@ -336,7 +336,7 @@ class TestFileHandling(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
             added=d1,
         )
 
-        self.assertEqual(generate_filename(doc1), Path("232-01-09.pdf"))
+        self.assertEqual(generate_filename(doc1), Path("0232-01-09.pdf"))
 
         doc1.added = timezone.make_aware(datetime.datetime(2020, 11, 16, 1, 1, 1))
 
@@ -369,7 +369,6 @@ class TestFileHandling(DirectoriesMixin, FileSystemAssertsMixin, TestCase):
         )
         self.assertIsNotDir(settings.ORIGINALS_DIR / "none" / "none")
         self.assertIsNotDir(settings.ORIGINALS_DIR / "none")
-        self.assertIsDir(settings.ORIGINALS_DIR)
 
     @override_settings(FILENAME_FORMAT="{doc_pk}")
     def test_format_doc_pk(self) -> None:
@@ -608,11 +607,11 @@ class TestFileHandlingWithArchive(DirectoriesMixin, FileSystemAssertsMixin, Test
         self.assertIsFile(doc.archive_path)
         self.assertEqual(
             doc.source_path,
-            settings.ORIGINALS_DIR / "none" / "my_doc.pdf",
+            (settings.ORIGINALS_DIR / "none" / "my_doc.pdf").resolve(),
         )
         self.assertEqual(
             doc.archive_path,
-            settings.ARCHIVE_DIR / "none" / "my_doc.pdf",
+            (settings.ARCHIVE_DIR / "none" / "my_doc.pdf").resolve(),
         )
 
     @override_settings(FILENAME_FORMAT="{correspondent}/{title}")

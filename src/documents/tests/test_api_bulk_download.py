@@ -51,6 +51,12 @@ class TestBulkDownload(DirectoriesMixin, SampleDirMixin, APITestCase):
             archive_checksum="D",
         )
 
+        # Ensure parent directories exist before copying
+        self.doc2.source_path.parent.mkdir(parents=True, exist_ok=True)
+        self.doc2b.source_path.parent.mkdir(parents=True, exist_ok=True)
+        self.doc3.source_path.parent.mkdir(parents=True, exist_ok=True)
+        self.doc3.archive_path.parent.mkdir(parents=True, exist_ok=True)
+
         shutil.copy(self.SAMPLE_DIR / "simple.pdf", self.doc2.source_path)
         shutil.copy(self.SAMPLE_DIR / "simple.png", self.doc2b.source_path)
         shutil.copy(self.SAMPLE_DIR / "simple.jpg", self.doc3.source_path)

@@ -396,8 +396,8 @@ MIDDLEWARE = [
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-    "paperless.middleware.ApiVersionMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "paperless.middleware.ApiVersionMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
@@ -920,12 +920,28 @@ LOGGING = {
     "loggers": {
         "paperless": {"handlers": ["file_paperless"], "level": "DEBUG"},
         "paperless_mail": {"handlers": ["file_mail"], "level": "DEBUG"},
-        "paperless_ai": {"handlers": ["file_paperless"], "level": "DEBUG"},
+        "paperless_ai": {
+            "handlers": ["file_paperless"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "paperless_ai.chat": {
+            "handlers": ["file_paperless"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "paperless_ai.vector_store": {
+            "handlers": ["file_paperless"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "llama_index": {"handlers": ["file_paperless"], "level": "WARNING"},
         "ocrmypdf": {"handlers": ["file_paperless"], "level": "INFO"},
         "celery": {"handlers": ["file_celery"], "level": "DEBUG"},
         "kombu": {"handlers": ["file_celery"], "level": "DEBUG"},
         "_granian": {"handlers": ["file_paperless"], "level": "DEBUG"},
         "granian.access": {"handlers": ["file_paperless"], "level": "DEBUG"},
+        "LiteLLM": {"handlers": ["console"], "level": "WARNING", "propagate": False},
     },
 }
 
@@ -1207,6 +1223,27 @@ OCR_COLOR_CONVERSION_STRATEGY = os.getenv(
 
 OCR_USER_ARGS = os.getenv("PAPERLESS_OCR_USER_ARGS")
 
+OCR_ENGINE = os.getenv("PAPERLESS_OCR_ENGINE", "tesseract")
+
+INSTALLED_APPS.append("paperless_docling.apps.PaperlessDoclingConfig")
+INSTALLED_APPS.append("paperless_ollama.apps.PaperlessOllamaConfig")
+
+OLLAMA_ENDPOINT = os.getenv("PAPERLESS_OLLAMA_ENDPOINT", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("PAPERLESS_OLLAMA_MODEL", "deepseek-ocr")
+OLLAMA_PROMPT_TEMPLATE = os.getenv("PAPERLESS_OLLAMA_PROMPT_TEMPLATE", "")
+OLLAMA_TIMEOUT = __get_int("PAPERLESS_OLLAMA_TIMEOUT", 30)
+OLLAMA_OCR_DEBUG_THUMBNAIL = __get_boolean("PAPERLESS_OLLAMA_OCR_DEBUG_THUMBNAIL")
+DOCLING_FORCE_OCR = __get_boolean("PAPERLESS_DOCLING_FORCE_OCR")
+DOCLING_LANGUAGE = os.getenv("PAPERLESS_DOCLING_LANGUAGE", OCR_LANGUAGE)
+DOCLING_ENDPOINT = os.getenv("PAPERLESS_DOCLING_ENDPOINT", "http://localhost:5001")
+DOCLING_TIMEOUT = __get_int("PAPERLESS_DOCLING_TIMEOUT", 30)
+OCR_SHARPEN = __get_boolean("PAPERLESS_OCR_SHARPEN")
+OCR_CUSTOM_ALIGNMENT = __get_boolean("PAPERLESS_OCR_CUSTOM_ALIGNMENT")
+OCR_SHARPEN_RADIUS = __get_float("PAPERLESS_OCR_SHARPEN_RADIUS", 1.0)
+OCR_SHARPEN_PERCENT = __get_float("PAPERLESS_OCR_SHARPEN_PERCENT", 150.0)
+OCR_SHARPEN_THRESHOLD = __get_float("PAPERLESS_OCR_SHARPEN_THRESHOLD", 0.0)
+OCR_ALIGNMENT_THRESHOLD = __get_float("PAPERLESS_OCR_ALIGNMENT_THRESHOLD", 12.0)
+
 MAX_IMAGE_PIXELS: Final[int | None] = __get_optional_int(
     "PAPERLESS_MAX_IMAGE_PIXELS",
 )
@@ -1465,11 +1502,48 @@ LLM_MODEL = os.getenv("PAPERLESS_AI_LLM_MODEL")
 LLM_API_KEY = os.getenv("PAPERLESS_AI_LLM_API_KEY")
 LLM_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_ENDPOINT")
 LLM_TIMEOUT = __get_int("PAPERLESS_AI_LLM_TIMEOUT", 120)
-VECTOR_STORE_BACKEND = os.getenv("PAPERLESS_AI_VECTOR_STORE_BACKEND", "auto")
+VECTOR_STORE_BACKEND = os.getenv(
+    "PAPERLESS_AI_VECTOR_STORE_BACKEND",
+    os.getenv("PAPERLESS_AI_VECTOR_STORE", "auto"),
+)
 AI_SYSTEM_PROMPT = os.getenv("PAPERLESS_AI_SYSTEM_PROMPT")
 
-VECTOR_STORE_HOST = os.getenv("PAPERLESS_AI_VECTOR_STORE_HOST")
-VECTOR_STORE_PORT = __get_optional_int("PAPERLESS_AI_VECTOR_STORE_PORT")
-VECTOR_STORE_USER = os.getenv("PAPERLESS_AI_VECTOR_STORE_USER")
-VECTOR_STORE_PASSWORD = os.getenv("PAPERLESS_AI_VECTOR_STORE_PASSWORD")
-VECTOR_STORE_DATABASE = os.getenv("PAPERLESS_AI_VECTOR_STORE_DATABASE")
+VECTOR_STORE_HOST = os.getenv(
+    "PAPERLESS_AI_VECTOR_STORE_HOST",
+    os.getenv("PAPERLESS_AI_VECTOR_HOST"),
+)
+VECTOR_STORE_PORT = __get_optional_int(
+    "PAPERLESS_AI_VECTOR_STORE_PORT",
+) or __get_optional_int("PAPERLESS_AI_VECTOR_PORT")
+VECTOR_STORE_USER = os.getenv(
+    "PAPERLESS_AI_VECTOR_STORE_USER",
+    os.getenv("PAPERLESS_AI_VECTOR_USER"),
+)
+VECTOR_STORE_PASSWORD = os.getenv(
+    "PAPERLESS_AI_VECTOR_STORE_PASSWORD",
+    os.getenv("PAPERLESS_AI_VECTOR_PASS"),
+)
+VECTOR_STORE_DATABASE = os.getenv(
+    "PAPERLESS_AI_VECTOR_STORE_DATABASE",
+    os.getenv("PAPERLESS_AI_VECTOR_DB_NAME"),
+)
+
+# AI Auto-enhancement settings
+PAPERLESS_AI_AUTO_ASSIGN = __get_boolean("PAPERLESS_AI_AUTO_ASSIGN", "NO")
+PAPERLESS_AI_CONFIDENCE_THRESHOLD = __get_float(
+    "PAPERLESS_AI_CONFIDENCE_THRESHOLD",
+    0.7,
+)
+PAPERLESS_AI_AUTO_CREATE_THRESHOLD = __get_float(
+    "PAPERLESS_AI_AUTO_CREATE_THRESHOLD",
+    0.8,
+)
+PAPERLESS_AI_FORCE_UPDATE = __get_boolean("PAPERLESS_AI_FORCE_UPDATE", "NO")
+
+# AI Safety and Configuration settings
+ROLLBACK_ENABLED = __get_boolean("PAPERLESS_ROLLBACK_ENABLED", "YES")
+ROLLBACK_RETENTION_DAYS = __get_int("PAPERLESS_ROLLBACK_RETENTION_DAYS", 30)
+AUDIT_LOG_LEVEL = os.getenv("PAPERLESS_AUDIT_LOG_LEVEL", "INFO")
+RATE_LIMIT_REQUESTS = __get_int("PAPERLESS_RATE_LIMIT_REQUESTS", 100)
+RATE_LIMIT_WINDOW = __get_int("PAPERLESS_RATE_LIMIT_WINDOW", 60)
+GRACEFUL_DEGRADATION = __get_boolean("PAPERLESS_GRACEFUL_DEGRADATION", "YES")

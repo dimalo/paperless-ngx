@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from paperless_text.parsers import TextDocumentParser
 
 
@@ -11,6 +13,10 @@ class TestTextParser:
         sample_txt_file: Path,
     ) -> None:
         # just make sure that it does not crash
+        if not Path(
+            "/usr/share/fonts/liberation/LiberationSerif-Regular.ttf",
+        ).exists():
+            pytest.skip("Liberation Serif font not available")
         f = text_parser.get_thumbnail(sample_txt_file, "text/plain")
         assert f.exists()
         assert f.is_file()
@@ -54,6 +60,10 @@ class TestTextParser:
         THEN:
             - A thumbnail is created without reading the entire file into memory
         """
+        if not Path(
+            "/usr/share/fonts/liberation/LiberationSerif-Regular.ttf",
+        ).exists():
+            pytest.skip("Liberation Serif font not available")
         with tempfile.NamedTemporaryFile(
             delete=False,
             mode="w",

@@ -1,4 +1,5 @@
 from django.core.validators import FileExtensionValidator
+from django.core.validators import MaxValueValidator
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -108,9 +109,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         choices=OutputTypeChoices.choices,
     )
 
-    """
-    Settings for the Tesseract based OCR parser
-    """
+    # Settings for the Tesseract based OCR parser
 
     pages = models.PositiveIntegerField(
         verbose_name=_("Do OCR from page 1 to this value"),
@@ -188,9 +187,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         null=True,
     )
 
-    """
-    Settings for the Paperless application
-    """
+    # Settings for the Paperless application
 
     app_title = models.CharField(
         verbose_name=_("Application title"),
@@ -209,9 +206,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         upload_to="logo/",
     )
 
-    """
-    Settings for the barcode scanner
-    """
+    # Settings for the barcode scanner
 
     # PAPERLESS_CONSUMER_ENABLE_BARCODES
     barcodes_enabled = models.BooleanField(
@@ -292,9 +287,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
         null=True,
     )
 
-    """
-    AI related settings
-    """
+    # AI related settings
 
     ai_enabled = models.BooleanField(
         verbose_name=_("Enables AI features"),
@@ -366,6 +359,8 @@ class ApplicationConfiguration(AbstractSingletonModel):
         validators=[MinValueValidator(1)],
     )
 
+    # Vector storage settings
+
     vector_store_backend = models.CharField(
         verbose_name=_("Vector store backend"),
         blank=True,
@@ -373,12 +368,6 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=16,
         choices=VectorStoreChoices.choices,
         default=VectorStoreChoices.AUTO,
-    )
-
-    ai_system_prompt = models.TextField(
-        verbose_name=_("AI system prompt"),
-        null=True,
-        blank=True,
     )
 
     vector_store_host = models.CharField(
@@ -413,6 +402,135 @@ class ApplicationConfiguration(AbstractSingletonModel):
         blank=True,
         null=True,
         max_length=256,
+    )
+
+    # OCR engine settings
+
+    ocr_engine = models.CharField(
+        verbose_name=_("Sets the OCR engine"),
+        null=True,
+        blank=True,
+        max_length=16,
+        choices=[
+            ("tesseract", _("Tesseract")),
+            ("docling", _("Docling (Local)")),
+            ("docling_server", _("Docling Server")),
+            ("ollama", _("Ollama")),
+        ],
+        default="tesseract",
+    )
+
+    ollama_endpoint = models.CharField(
+        verbose_name=_("Ollama endpoint"),
+        null=True,
+        blank=True,
+        max_length=256,
+    )
+
+    ollama_model = models.CharField(
+        verbose_name=_("Ollama model"),
+        null=True,
+        blank=True,
+        max_length=128,
+    )
+
+    ollama_prompt_template = models.TextField(
+        verbose_name=_("Ollama prompt template"),
+        null=True,
+        blank=True,
+    )
+
+    ollama_timeout = models.PositiveIntegerField(
+        verbose_name=_("Ollama timeout"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    ollama_ocr_debug_thumbnail = models.BooleanField(
+        verbose_name=_("Ollama OCR debug thumbnail"),
+        null=True,
+    )
+
+    ai_system_prompt = models.TextField(
+        verbose_name=_("AI system prompt"),
+        null=True,
+        blank=True,
+    )
+
+    enable_auto_ai_enhancement = models.BooleanField(
+        verbose_name=_("Enable Auto AI Enhancement"),
+        null=True,
+    )
+
+    confidence_threshold = models.FloatField(
+        verbose_name=_("Confidence threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+
+    auto_create_threshold = models.FloatField(
+        verbose_name=_("Auto create threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+
+    docling_force_ocr = models.BooleanField(
+        verbose_name=_("Docling force OCR"),
+        null=True,
+    )
+
+    docling_language = models.CharField(
+        verbose_name=_("Docling language"),
+        null=True,
+        blank=True,
+        max_length=32,
+    )
+
+    docling_endpoint = models.CharField(
+        verbose_name=_("Docling endpoint"),
+        null=True,
+        blank=True,
+        max_length=256,
+    )
+
+    docling_timeout = models.PositiveIntegerField(
+        verbose_name=_("Docling timeout"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    ocr_sharpen = models.BooleanField(
+        verbose_name=_("OCR sharpen"),
+        null=True,
+    )
+
+    ocr_custom_alignment = models.BooleanField(
+        verbose_name=_("OCR custom alignment"),
+        null=True,
+    )
+
+    ocr_sharpen_radius = models.FloatField(
+        verbose_name=_("OCR sharpen radius"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_sharpen_percent = models.FloatField(
+        verbose_name=_("OCR sharpen percent"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_sharpen_threshold = models.FloatField(
+        verbose_name=_("OCR sharpen threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
+    )
+
+    ocr_alignment_threshold = models.FloatField(
+        verbose_name=_("OCR alignment threshold"),
+        null=True,
+        validators=[MinValueValidator(0.0)],
     )
 
     class Meta(AbstractSingletonModel.Meta):

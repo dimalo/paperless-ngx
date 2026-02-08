@@ -2,6 +2,7 @@ import datetime
 import shutil
 import stat
 import tempfile
+import unittest
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock
@@ -905,6 +906,7 @@ class TestConsumer(
 
 
 @mock.patch("documents.consumer.magic.from_file", fake_magic_from_file)
+@unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
 class TestConsumerCreatedDate(DirectoriesMixin, GetConsumerMixin, TestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -1043,6 +1045,7 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
         self.test_file = self.dirs.scratch_dir / "sample.pdf"
         shutil.copy(src, self.test_file)
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @mock.patch("documents.consumer.run_subprocess")
     @override_settings(PRE_CONSUME_SCRIPT=None)
     def test_no_pre_consume_script(self, m) -> None:
@@ -1057,6 +1060,7 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
             self.assertRaises(ConsumerError, c.run)
             m.assert_not_called()
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     @mock.patch("documents.consumer.run_subprocess")
     def test_pre_consume_script(self, m) -> None:
         with tempfile.NamedTemporaryFile() as script:
@@ -1072,15 +1076,24 @@ class PreConsumeTestCase(DirectoriesMixin, GetConsumerMixin, TestCase):
                     environment = args[1]
 
                     self.assertEqual(command[0], script.name)
-                    self.assertEqual(command[1], str(self.test_file))
+                    self.assertEqual(
+                        Path(command[1]).resolve(),
+                        Path(self.test_file).resolve(),
+                    )
 
                     subset = {
-                        "DOCUMENT_SOURCE_PATH": str(c.input_doc.original_file),
-                        "DOCUMENT_WORKING_PATH": str(c.working_copy),
+                        "DOCUMENT_SOURCE_PATH": str(
+                            Path(c.input_doc.original_file).resolve(),
+                        ),
+                        "DOCUMENT_WORKING_PATH": str(Path(c.working_copy).resolve()),
                         "TASK_ID": c.task_id,
                     }
-                    self.assertDictEqual(environment, {**environment, **subset})
+                    # We only check a subset of the environment, as it contains
+                    # many more variables
+                    for key, value in subset.items():
+                        self.assertEqual(environment[key], value)
 
+    @unittest.skipIf(shutil.which("gs") is None, "Ghostscript (gs) not available")
     def test_script_with_output(self) -> None:
         """
         GIVEN:

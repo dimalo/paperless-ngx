@@ -13,6 +13,7 @@ import requests
 from django.conf import settings
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
 
 from documents.models import Document
 from documents.models import Note
@@ -71,10 +72,16 @@ class LiteLLMEmbedding(BaseEmbedding):
                     timeout=self.timeout,
                 )
                 return response.data[0]["embedding"]
-            except Exception:
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
                 attempt += 1
                 if attempt > self.MAX_RETRIES:
+                    logger.error(
+                        f"LiteLLM embedding call failed after {attempt} attempts: {e}",
+                    )
                     raise
+                logger.warning(
+                    f"LiteLLM embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
                 time.sleep(1)
 
     async def _aget_text_embedding(self, text: str) -> list[float]:
@@ -89,10 +96,16 @@ class LiteLLMEmbedding(BaseEmbedding):
                     timeout=self.timeout,
                 )
                 return response.data[0]["embedding"]
-            except Exception:
+            except (litellm.Timeout, litellm.APIError, litellm.APIConnectionError) as e:
                 attempt += 1
                 if attempt > self.MAX_RETRIES:
+                    logger.error(
+                        f"LiteLLM async embedding call failed after {attempt} attempts: {e}",
+                    )
                     raise
+                logger.warning(
+                    f"LiteLLM async embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                )
                 await asyncio.sleep(1)
 
     def _get_text_embeddings(self, texts: list[str]) -> list[list[float]]:
@@ -112,19 +125,37 @@ class LiteLLMEmbedding(BaseEmbedding):
         ]
 
         async def process_batch(batch_texts):
-            response = await litellm.aembedding(
-                model=self._get_model_with_prefix(),
-                input=batch_texts,
-                api_base=self.api_base,
-                api_key=self.api_key,
-                timeout=self.timeout,
-            )
-            return [item["embedding"] for item in response.data]
+            attempt = 0
+            while True:
+                try:
+                    response = await litellm.aembedding(
+                        model=self._get_model_with_prefix(),
+                        input=batch_texts,
+                        api_base=self.api_base,
+                        api_key=self.api_key,
+                        timeout=self.timeout,
+                    )
+                    return [item["embedding"] for item in response.data]
+                except (
+                    litellm.Timeout,
+                    litellm.APIError,
+                    litellm.APIConnectionError,
+                ) as e:
+                    attempt += 1
+                    if attempt > self.MAX_RETRIES:
+                        logger.error(
+                            f"LiteLLM async batch embedding call failed after {attempt} attempts: {e}",
+                        )
+                        raise
+                    logger.warning(
+                        f"LiteLLM async batch embedding call failed (attempt {attempt}/{self.MAX_RETRIES + 1}), retrying: {e}",
+                    )
+                    await asyncio.sleep(1)
 
-        all_embeddings = []
         tasks = [process_batch(batch) for batch in batches]
         batch_results = await asyncio.gather(*tasks)
 
+        all_embeddings = []
         for result in batch_results:
             all_embeddings.extend(result)
         return all_embeddings
@@ -132,7 +163,17 @@ class LiteLLMEmbedding(BaseEmbedding):
 
 def get_embedding_model() -> BaseEmbedding:
     config = AIConfig()
+    logger.info(
+        "Loading embedding model (backend: %s, model: %s)",
+        config.llm_embedding_backend,
+        config.llm_embedding_model or "default",
+    )
     match config.llm_embedding_backend:
+        case LLMEmbeddingBackend.OPENAI:
+            return OpenAIEmbedding(
+                model=str(config.llm_embedding_model or "text-embedding-3-small"),
+                api_key=str(config.llm_api_key or ""),
+            )
         case LLMEmbeddingBackend.HUGGINGFACE:
             return HuggingFaceEmbedding(
                 model_name=str(
@@ -151,8 +192,6 @@ def get_embedding_model() -> BaseEmbedding:
             )
         case _:
             # Fallback/Legacy
-            from llama_index.embeddings.openai import OpenAIEmbedding
-
             return OpenAIEmbedding(
                 model=str(config.llm_embedding_model or "text-embedding-3-small"),
                 api_key=str(config.llm_api_key or ""),
@@ -164,11 +203,14 @@ def get_embedding_dim() -> int:
     Loads embedding dimension from meta.json or infers it.
     """
     config = AIConfig()
-    model = config.llm_embedding_model or (
-        "nomic-embed-text"
-        if config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA
-        else "sentence-transformers/all-MiniLM-L6-v2"
-    )
+    if config.llm_embedding_backend == LLMEmbeddingBackend.OPENAI:
+        model = config.llm_embedding_model or "text-embedding-3-small"
+    elif config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA:
+        model = config.llm_embedding_model or "nomic-embed-text"
+    elif config.llm_embedding_backend == LLMEmbeddingBackend.HUGGINGFACE:
+        model = config.llm_embedding_model or "sentence-transformers/all-MiniLM-L6-v2"
+    else:
+        model = config.llm_embedding_model or "unknown"
 
     meta_path: Path = settings.LLM_INDEX_DIR / "meta.json"
     if meta_path.exists():
@@ -181,24 +223,23 @@ def get_embedding_dim() -> int:
         return meta["dim"]
 
     # Try Ollama discovery
-    if config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA:
+    endpoint_url = config.llm_embedding_endpoint or config.llm_endpoint
+    if config.llm_embedding_backend == LLMEmbeddingBackend.OLLAMA and endpoint_url:
         try:
-            endpoint = (
-                config.llm_embedding_endpoint or config.llm_endpoint or ""
-            ).rstrip("/")
-            if endpoint:
-                if not endpoint.startswith("http"):
-                    endpoint = f"http://{endpoint}"
-                resp = requests.post(f"{endpoint}/api/show", json={"name": model})
-                if resp.status_code == 200:
-                    info = resp.json().get("model_info", {})
-                    dim = info.get("embedding_length") or info.get(
-                        "llama.embedding_length",
-                    )
-                    if dim:
-                        return int(dim)
-        except Exception:
-            pass
+            endpoint = endpoint_url.rstrip("/")
+            if not endpoint.startswith("http"):
+                endpoint = f"http://{endpoint}"
+            show_url = f"{endpoint}/api/show"
+            resp = requests.post(show_url, json={"name": model}, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                model_info = data.get("model_info", {})
+                if "embedding_length" in model_info:
+                    return int(model_info["embedding_length"])
+                if "llama.embedding_length" in model_info:
+                    return int(model_info["llama.embedding_length"])
+        except Exception as e:
+            logger.debug(f"Failed to fetch model info from Ollama: {e}")
 
     embedding_model = get_embedding_model()
     dim = len(embedding_model.get_text_embedding("test"))
@@ -217,7 +258,7 @@ def build_llm_index_text(doc: Document) -> str:
         f"Created: {doc.created}",
         f"Added: {doc.added}",
         f"Modified: {doc.modified}",
-        f"Tags: {', '.join(tag.name for tag in doc.tags.all())}",
+        f"Tags: {', '.join(tag.name for tag in doc.tags.all())}",  # type: ignore
         f"Document Type: {doc.document_type.name if doc.document_type else ''}",
         f"Correspondent: {doc.correspondent.name if doc.correspondent else ''}",
         f"Storage Path: {doc.storage_path.name if doc.storage_path else ''}",
@@ -225,10 +266,10 @@ def build_llm_index_text(doc: Document) -> str:
         f"Notes: {','.join([str(c.note) for c in Note.objects.filter(document=doc)])}",
     ]
 
-    for instance in doc.custom_fields.all():
+    for instance in doc.custom_fields.all():  # type: ignore
         lines.append(f"Custom Field - {instance.field.name}: {instance}")
 
     lines.append("\nContent:\n")
-    lines.append(doc.content or "")
+    lines.append(str(doc.content or ""))
 
     return "\n".join(lines)

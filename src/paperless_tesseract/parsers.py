@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from PIL import Image
 
-from documents.parsers import DocumentParser
+from documents.parsers import ImageDocumentParser
 from documents.parsers import ParseError
 from documents.parsers import make_thumbnail_from_pdf
 from documents.utils import maybe_override_pixel_limit
@@ -26,7 +25,7 @@ class RtlLanguageException(Exception):
     pass
 
 
-class RasterisedDocumentParser(DocumentParser):
+class RasterisedDocumentParser(ImageDocumentParser):
     """
     This parser uses Tesseract to try and get some text out of a rasterised
     image, whether it's a PDF, or other graphical format (JPEG, TIFF, etc.)
@@ -99,57 +98,6 @@ class RasterisedDocumentParser(DocumentParser):
             self.tempdir,
             self.logging_group,
         )
-
-    def is_image(self, mime_type) -> bool:
-        return mime_type in [
-            "image/png",
-            "image/jpeg",
-            "image/tiff",
-            "image/bmp",
-            "image/gif",
-            "image/webp",
-            "image/heic",
-        ]
-
-    def has_alpha(self, image) -> bool:
-        with Image.open(image) as im:
-            return im.mode in ("RGBA", "LA")
-
-    def remove_alpha(self, image_path: str) -> Path:
-        no_alpha_image = Path(self.tempdir) / "image-no-alpha"
-        run_subprocess(
-            [
-                settings.CONVERT_BINARY,
-                "-alpha",
-                "off",
-                image_path,
-                no_alpha_image,
-            ],
-            logger=self.log,
-        )
-        return no_alpha_image
-
-    def get_dpi(self, image) -> int | None:
-        try:
-            with Image.open(image) as im:
-                x, _ = im.info["dpi"]
-                return round(x)
-        except Exception as e:
-            self.log.warning(f"Error while getting DPI from image {image}: {e}")
-            return None
-
-    def calculate_a4_dpi(self, image) -> int | None:
-        try:
-            with Image.open(image) as im:
-                width, _ = im.size
-                # divide image width by A4 width (210mm) in inches.
-                dpi = int(width / (21 / 2.54))
-                self.log.debug(f"Estimated DPI {dpi} based on image width {width}")
-                return dpi
-
-        except Exception as e:
-            self.log.warning(f"Error while calculating DPI for image {image}: {e}")
-            return None
 
     def extract_text(
         self,
@@ -378,6 +326,11 @@ class RasterisedDocumentParser(DocumentParser):
             archive_path,
             sidecar_file,
         )
+
+        # Get page count for progress reporting
+        page_count = self.get_page_count(document_path, mime_type)
+        if page_count:
+            self.log.debug(f"Document has {page_count} pages")
 
         try:
             self.log.debug(f"Calling OCRmyPDF with args: {args}")

@@ -111,3 +111,9 @@ celerybeat-schedule*
 
 # ignore pnpm package store folder created when setting up the devcontainer
 .pnpm-store/
+
+# Local python version
+.python-version
+
+# ignore agent internal storage but keep rules/workflows
+.agent/

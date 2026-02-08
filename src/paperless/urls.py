@@ -15,6 +15,7 @@ from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
+from documents.views import AIReviewQueueViewSet
 from documents.views import BulkDownloadView
 from documents.views import BulkEditObjectsView
 from documents.views import BulkEditView
@@ -48,10 +49,12 @@ from documents.views import serve_logo
 from paperless.consumers import StatusConsumer
 from paperless.views import ApplicationConfigurationViewSet
 from paperless.views import DisconnectSocialAccountView
+from paperless.views import DoclingProxyView
 from paperless.views import FaviconView
 from paperless.views import GenerateAuthTokenView
 from paperless.views import GroupViewSet
 from paperless.views import LLMProxyView
+from paperless.views import OllamaProxyView
 from paperless.views import PaperlessObtainAuthTokenView
 from paperless.views import ProfileView
 from paperless.views import SocialAccountProvidersView
@@ -66,6 +69,7 @@ api_router = DefaultRouter()
 api_router.register(r"correspondents", CorrespondentViewSet)
 api_router.register(r"document_types", DocumentTypeViewSet)
 api_router.register(r"documents", UnifiedSearchViewSet)
+api_router.register(r"ai_review", AIReviewQueueViewSet)
 api_router.register(r"logs", LogViewSet, basename="logs")
 api_router.register(r"tags", TagViewSet)
 api_router.register(r"saved_views", SavedViewViewSet)
@@ -208,6 +212,16 @@ urlpatterns = [
                     "^llm_proxy/(?P<path>.*)$",
                     LLMProxyView.as_view(),
                     name="llm_proxy",
+                ),
+                re_path(
+                    "^ollama_proxy/(?P<path>.*)$",
+                    OllamaProxyView.as_view(),
+                    name="ollama_proxy",
+                ),
+                re_path(
+                    "^docling_proxy/",
+                    DoclingProxyView.as_view(),
+                    name="docling_proxy",
                 ),
                 re_path(
                     "^trash/",

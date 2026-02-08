@@ -728,6 +728,12 @@ def test_preprocess_content() -> None:
     THEN:
         - Processed content matches the expected output (stemmed words)
     """
+    try:
+        import nltk
+
+        nltk.data.find("corpora/stopwords")
+    except LookupError:
+        pytest.skip("NLTK stopwords corpus not available")
     with (Path(__file__).parent / "samples" / "content.txt").open("r") as f:
         content = f.read()
     with (Path(__file__).parent / "samples" / "preprocessed_content_advanced.txt").open(

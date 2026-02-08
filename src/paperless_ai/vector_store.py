@@ -14,7 +14,8 @@ logger = logging.getLogger("paperless_ai.vector_store")
 
 class VectorStoreFactory:
     """
-    Factory class to create and configure the appropriate vector store.
+    Factory class to create and configure the appropriate vector store
+    based on the application settings and environment.
     """
 
     _backend_cache: str | None = None
@@ -22,16 +23,25 @@ class VectorStoreFactory:
 
     @staticmethod
     def get_vector_store_backend() -> str:
+        """
+        Determines which vector store backend to use.
+        """
         if VectorStoreFactory._backend_cache:
             return VectorStoreFactory._backend_cache
 
         config = AIConfig()
         backend = config.vector_store_backend
 
+        logger.debug("Determining vector store backend (configured: %s)", backend)
+
         if backend == "auto":
             if VectorStoreFactory._is_pgvector_available():
+                logger.debug(
+                    "Auto-detected pgvector availability, using postgres backend",
+                )
                 VectorStoreFactory._backend_cache = "postgres"
             else:
+                logger.debug("pgvector not available, falling back to faiss backend")
                 VectorStoreFactory._backend_cache = "faiss"
         else:
             VectorStoreFactory._backend_cache = backend
@@ -40,6 +50,10 @@ class VectorStoreFactory:
 
     @staticmethod
     def _is_pgvector_available() -> bool:
+        """
+        Checks if the Postgres database engine is in use and if the
+        pgvector extension is installed.
+        """
         if settings.DATABASES["default"]["ENGINE"] != "django.db.backends.postgresql":
             return False
 
@@ -58,12 +72,16 @@ class VectorStoreFactory:
     @staticmethod
     def setup_vector_store() -> bool:
         """
-        Enables the pgvector extension if using Postgres.
+        Performs backend-specific setup, such as enabling the pgvector extension.
         """
         if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
             from django.db import connection
 
             if connection.in_atomic_block:
+                logger.warning(
+                    "Skipping pgvector extension setup because we are inside a transaction. "
+                    "Run 'manage.py document_llmindex setup' manually.",
+                )
                 return True
 
             try:
@@ -73,12 +91,14 @@ class VectorStoreFactory:
                 return True
             except Exception as e:
                 logger.error("Failed to enable pgvector extension: %s", e)
-                # We return False but don't crash, the error will surface during indexing
                 return False
         return True
 
     @staticmethod
     def get_storage_context(*, rebuild: bool = False) -> StorageContext:
+        """
+        Returns the appropriate StorageContext for the selected backend.
+        """
         if not rebuild and VectorStoreFactory._storage_context_cache:
             return VectorStoreFactory._storage_context_cache
 
@@ -97,6 +117,9 @@ class VectorStoreFactory:
 
     @staticmethod
     def _get_postgres_storage_context() -> StorageContext:
+        """
+        Initializes and returns a StorageContext using PostgresVectorStore.
+        """
         config = AIConfig()
         db_settings = settings.DATABASES["default"]
 
@@ -123,6 +146,12 @@ class VectorStoreFactory:
 
         embed_dim = get_embedding_dim()
 
+        logger.info(
+            "Connecting to Postgres vector store at %s:%s (db: %s)",
+            host,
+            port,
+            db_name,
+        )
         vector_store = PGVectorStore(
             connection_string=connection_string,
             async_connection_string=async_connection_string,
@@ -134,6 +163,9 @@ class VectorStoreFactory:
 
     @staticmethod
     def _get_faiss_storage_context(*, rebuild: bool = False) -> StorageContext:
+        """
+        Initializes and returns a StorageContext using FaissVectorStore (local JSON).
+        """
         import shutil
 
         import faiss
@@ -161,6 +193,7 @@ class VectorStoreFactory:
                 str(settings.LLM_INDEX_DIR),
             )
 
+        logger.info("Loading FAISS vector store from %s", settings.LLM_INDEX_DIR)
         return StorageContext.from_defaults(
             docstore=docstore,
             index_store=index_store,

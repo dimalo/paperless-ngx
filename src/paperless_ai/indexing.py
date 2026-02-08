@@ -12,6 +12,7 @@ from llama_index.core import VectorStoreIndex
 from llama_index.core import load_index_from_storage
 from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.schema import BaseNode
+from llama_index.core.text_splitter import TokenTextSplitter
 from llama_index.core.vector_stores import FilterCondition
 from llama_index.core.vector_stores import MetadataFilter
 from llama_index.core.vector_stores import MetadataFilters
@@ -50,6 +51,9 @@ def queue_llm_index_update_if_needed(*, rebuild: bool, reason: str) -> bool:
 
 
 def get_or_create_storage_context(*, rebuild=False):
+    """
+    Loads or creates the StorageContext using VectorStoreFactory.
+    """
     return VectorStoreFactory.get_storage_context(rebuild=rebuild)
 
 
@@ -58,16 +62,16 @@ def build_document_node(document: Document) -> list[BaseNode]:
     metadata = {
         "document_id": str(document.pk),
         "title": document.title,
-        "tags": [t.name for t in document.tags.all()],
+        "tags": [t.name for t in document.tags.all()],  # type: ignore
         "correspondent": document.correspondent.name
         if document.correspondent
         else None,
         "document_type": document.document_type.name
         if document.document_type
         else None,
-        "created": document.created.isoformat() if document.created else None,
-        "added": document.added.isoformat() if document.added else None,
-        "modified": document.modified.isoformat() if document.modified else None,
+        "created": document.created.isoformat() if document.created else None,  # type: ignore
+        "added": document.added.isoformat() if document.added else None,  # type: ignore
+        "modified": document.modified.isoformat(),  # type: ignore
     }
     doc = LlamaDocument(text=text, metadata=metadata)
     doc.id_ = str(document.pk)
@@ -76,6 +80,10 @@ def build_document_node(document: Document) -> list[BaseNode]:
 
 
 def load_or_build_index(nodes=None) -> VectorStoreIndex:
+    """
+    Load an existing VectorStoreIndex if present,
+    or build a new one using provided nodes if storage is empty.
+    """
     embed_model = get_embedding_model()
     llama_settings.Settings.embed_model = embed_model
     storage_context = get_or_create_storage_context()
@@ -107,12 +115,17 @@ def load_or_build_index(nodes=None) -> VectorStoreIndex:
 
 
 def remove_document_from_index(document: Document, index: VectorStoreIndex):
+    """
+    Removes a document from the index, handling backend specifics.
+    """
     if VectorStoreFactory.get_vector_store_backend() == "postgres":
         try:
+            # Delete by ref_doc_id (which we set to document.pk)
             index.delete_ref_doc(str(document.pk), delete_from_docstore=False)
         except Exception as e:
             logger.debug("Failed to delete document %s from index: %s", document.pk, e)
     else:
+        # FAISS / Local Logic
         all_node_ids = list(index.docstore.docs.keys())
         existing_nodes = [
             node.node_id
@@ -124,17 +137,25 @@ def remove_document_from_index(document: Document, index: VectorStoreIndex):
 
 
 def vector_store_file_exists():
+    """
+    Check if the vector store file exists in the LLM index directory.
+    For Postgres, returns True to ensure we use the incremental update path.
+    """
     if VectorStoreFactory.get_vector_store_backend() == "postgres":
         return True
     return Path(settings.LLM_INDEX_DIR / "docstore.json").exists()
 
 
 def get_existing_docs_map(index: VectorStoreIndex) -> dict[str, str]:
+    """
+    Returns a map of document_id -> modified_iso for documents currently in the index.
+    """
     existing_map = {}
     if VectorStoreFactory.get_vector_store_backend() == "postgres":
         from django.db import connection
 
         with connection.cursor() as cursor:
+            # Try to find the table name ('paperless_vectors')
             cursor.execute(
                 "SELECT table_name FROM information_schema.tables "
                 "WHERE table_schema='public' AND table_name = 'paperless_vectors'",
@@ -160,11 +181,16 @@ def get_existing_docs_map(index: VectorStoreIndex) -> dict[str, str]:
             doc_id = node.metadata.get("document_id")
             if doc_id:
                 existing_map[doc_id] = node.metadata.get("modified")
+
     return existing_map
 
 
 def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
+    """
+    Rebuild or update the LLM index.
+    """
     VectorStoreFactory.setup_vector_store()
+
     documents = Document.objects.all()
     if not documents.exists():
         return "No documents found to index."
@@ -182,6 +208,7 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
             nodes = []
             for document in tqdm(documents, disable=progress_bar_disable):
                 nodes.extend(build_document_node(document))
+
             index = VectorStoreIndex(
                 nodes=nodes,
                 storage_context=storage_context,
@@ -196,18 +223,22 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
             for document in tqdm(documents, disable=progress_bar_disable):
                 remove_document_from_index(document, index)
                 index.insert_nodes(build_document_node(document))
+
         msg = "LLM index rebuilt successfully."
     else:
         index = load_or_build_index()
         existing_doc_map = get_existing_docs_map(index)
         nodes = []
+
         for document in tqdm(documents, disable=progress_bar_disable):
             doc_id = str(document.pk)
             document_modified = document.modified.isoformat()
+
             if doc_id in existing_doc_map:
                 if existing_doc_map[doc_id] == document_modified:
                     continue
                 remove_document_from_index(document, index)
+
             nodes.extend(build_document_node(document))
 
         if nodes:
@@ -238,7 +269,23 @@ def llm_index_remove_document(document: Document):
 
 
 def truncate_content(content: str) -> str:
-    return content[:4000]
+    from llama_index.core.indices.prompt_helper import PromptHelper
+    from llama_index.core.prompts import PromptTemplate
+
+    prompt_helper = PromptHelper(
+        context_window=8192,
+        num_output=512,
+        chunk_overlap_ratio=0.1,
+        chunk_size_limit=None,
+    )
+    splitter = TokenTextSplitter(separator=" ", chunk_size=512, chunk_overlap=50)
+    content_chunks = splitter.split_text(content)
+    truncated_chunks = prompt_helper.truncate(
+        prompt=PromptTemplate(template="{content}"),
+        text_chunks=content_chunks,
+        padding=5,
+    )
+    return " ".join(truncated_chunks)
 
 
 def query_similar_documents(
@@ -267,8 +314,10 @@ def query_similar_documents(
         similarity_top_k=top_k,
         filters=filters,
     )
-    query_text = (document.title or "") + "\n" + (document.content or "")
-    results = retriever.retrieve(query_text[:4000])  # Basic truncation
+    query_text = truncate_content(
+        str(document.title or "") + "\n" + str(document.content or ""),
+    )
+    results = retriever.retrieve(query_text)
 
     top_document_ids = [
         int(node.metadata["document_id"])

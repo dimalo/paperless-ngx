@@ -379,7 +379,7 @@ class ConsumerPlugin(
             progress_callback=progress_callback,
         )
 
-        self.log.debug(f"Parser: {type(document_parser).__name__}")
+        self.log.info(f"Parser: {type(document_parser).__name__}")
 
         # Parse the document. This may take some time.
 

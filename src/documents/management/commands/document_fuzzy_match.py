@@ -1,5 +1,5 @@
 import dataclasses
-import multiprocessing
+from multiprocessing.dummy import Pool as ThreadPool
 from typing import Final
 
 import rapidfuzz
@@ -111,7 +111,12 @@ class Command(MultiProcessMixin, ProgressBarMixin, BaseCommand):
             for work in tqdm.tqdm(work_pkgs, disable=self.no_progress_bar):
                 results.append(_process_and_match(work))
         else:  # pragma: no cover
-            with multiprocessing.Pool(processes=self.process_count) as pool:
+            # Use a ThreadPool instead of a Process Pool. The work is
+            # primarily CPU-bound (rapidfuzz), but rapidfuzz releases
+            # the GIL, so threads are efficient enough and avoid issues
+            # with Django's app registry in spawned processes
+            # (especially on macOS).
+            with ThreadPool(processes=self.process_count) as pool:
                 results = list(
                     tqdm.tqdm(
                         pool.imap_unordered(_process_and_match, work_pkgs),
