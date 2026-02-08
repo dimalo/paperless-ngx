@@ -167,34 +167,40 @@ def get_embedding_model() -> BaseEmbedding:
         config.llm_embedding_backend,
         config.llm_embedding_model or "default",
     )
-    match config.llm_embedding_backend:
-        case LLMEmbeddingBackend.OPENAI:
-            return OpenAIEmbedding(
-                model=str(config.llm_embedding_model or "text-embedding-3-small"),
-                api_key=str(config.llm_api_key or ""),
-            )
-        case LLMEmbeddingBackend.HUGGINGFACE:
-            return HuggingFaceEmbedding(
-                model_name=str(
-                    config.llm_embedding_model
-                    or "sentence-transformers/all-MiniLM-L6-v2",
-                ),
-            )
-        case LLMEmbeddingBackend.OLLAMA:
-            return LiteLLMEmbedding(
-                model_name=str(config.llm_embedding_model or "nomic-embed-text"),
-                api_base=str(
-                    config.llm_embedding_endpoint or config.llm_endpoint or "",
-                ),
-                api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
-                timeout=int(config.llm_timeout or 60),
-            )
-        case _:
-            # Fallback/Legacy
-            return OpenAIEmbedding(
-                model=str(config.llm_embedding_model or "text-embedding-3-small"),
-                api_key=str(config.llm_api_key or ""),
-            )
+
+    backend = config.llm_embedding_backend
+
+    # Validate backend
+    valid_backends = [choice[0] for choice in LLMEmbeddingBackend.choices]
+    if backend not in valid_backends:
+        raise ValueError(f"Unsupported embedding backend: {backend}")
+
+    if backend == LLMEmbeddingBackend.OPENAI:
+        return OpenAIEmbedding(
+            model=str(config.llm_embedding_model or "text-embedding-3-small"),
+            api_key=str(config.llm_api_key or ""),
+        )
+    elif backend == LLMEmbeddingBackend.HUGGINGFACE:
+        return HuggingFaceEmbedding(
+            model_name=str(
+                config.llm_embedding_model or "sentence-transformers/all-MiniLM-L6-v2",
+            ),
+        )
+    elif backend == LLMEmbeddingBackend.OLLAMA:
+        return LiteLLMEmbedding(
+            model_name=str(config.llm_embedding_model or "nomic-embed-text"),
+            api_base=str(
+                config.llm_embedding_endpoint or config.llm_endpoint or "",
+            ),
+            api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
+            timeout=int(config.llm_timeout or 60),
+        )
+    else:
+        # Fallback/Legacy
+        return OpenAIEmbedding(
+            model=str(config.llm_embedding_model or "text-embedding-3-small"),
+            api_key=str(config.llm_api_key or ""),
+        )
 
 
 def get_embedding_dim() -> int:
