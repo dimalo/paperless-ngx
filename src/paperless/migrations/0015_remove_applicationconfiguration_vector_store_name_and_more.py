@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("paperless", "0013_merge_20260204_2214"),
+        ("paperless", "0014_applicationconfiguration_barcode_tag_split_and_more"),
     ]
 
     operations = [
