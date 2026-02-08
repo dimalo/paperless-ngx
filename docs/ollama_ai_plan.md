@@ -20,22 +20,25 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 ## 📋 Design Decisions
 
-### Dependencies
+### Infrastructure & Dependencies
 
--   **litellm**: Required dependency (replaces direct OpenAI/Ollama SDK usage)
--   Keep `llama-index-llms-openai` and `llama-index-llms-ollama` for RAG compatibility
+-   **Docker:** Switch `docker-compose.postgres.yml` to use `pgvector/pgvector:pg16` image to support vector extension.
+-   **Dependencies:** Add `litellm` and `llama-index-vector-stores-postgres` to `pyproject.toml`.
+-   **Permissions:** `LLMProxyView` restricted to `IsAdminUser` to prevent SSRF.
 
 ### Configuration Defaults
 
 -   **Embedding Endpoint**: Defaults to `LLM_ENDPOINT` if not explicitly configured
 -   **Embedding Model**: `nomic-embed-text:latest` (v2) for Ollama
 -   **System Prompt**: Prepopulate with current hardcoded default, editable with reset button
+-   **Timeouts**: Default 120s, but configurable via `llm_timeout` setting (up to 300s+ for CPU users).
 
 ### Error Handling
 
 -   **Indexing Failures**: Skip document with warning (will retry on next scheduled index rebuild)
 -   **Chat Failures**: Display actual litellm error to user via Paperless notification system
 -   **Index Rebuild**: Detect dimension mismatch on model change, warn user with "Rebuild Index" button
+-   **Postgres Extension**: Try `CREATE EXTENSION vector`. If permission denied, fail hard with instruction to run command as superuser.
 
 ### Vector Store Strategy
 
