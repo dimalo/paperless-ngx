@@ -18,14 +18,41 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 ---
 
+## 📋 Design Decisions
+
+### Dependencies
+
+-   **litellm**: Required dependency (replaces direct OpenAI/Ollama SDK usage)
+-   Keep `llama-index-llms-openai` and `llama-index-llms-ollama` for RAG compatibility
+
+### Configuration Defaults
+
+-   **Embedding Endpoint**: Defaults to `LLM_ENDPOINT` if not explicitly configured
+-   **Embedding Model**: `nomic-embed-text:latest` (v2) for Ollama
+-   **System Prompt**: Prepopulate with current hardcoded default, editable with reset button
+
+### Error Handling
+
+-   **Indexing Failures**: Skip document with warning (will retry on next scheduled index rebuild)
+-   **Chat Failures**: Display actual litellm error to user via Paperless notification system
+-   **Index Rebuild**: Detect dimension mismatch on model change, warn user with "Rebuild Index" button
+
+### Vector Store Strategy
+
+-   **PostgreSQL**: Use PGVector, fail hard if extension unavailable (no FAISS fallback)
+-   **SQLite**: Use FAISS only
+-   **Future**: Plan for Chroma as universal fallback
+
+---
+
 ## 🔵 Phase 1: Backend Infrastructure (Pure Ollama Support)
 
 ### 1. Unified Configuration Model (`src/paperless/models.py`)
 
 -   **Ollama Embeddings:** Add `OLLAMA` to `LLMEmbeddingBackend` choices.
--   **Separate Endpoints:** Introduce `llm_embedding_endpoint` and `llm_embedding_api_key` to allow decoupled LLM/Embedding services.
+-   **Separate Endpoints:** Introduce `llm_embedding_endpoint` and `llm_embedding_api_key` to allow decoupled LLM/Embedding services (defaults to main LLM config).
 -   **Global Timeout:** Add `llm_timeout` (default 120s) to handle slower local models.
--   **System Prompt:** Add `ai_system_prompt` to allow user-defined AI personas.
+-   **System Prompt:** Add `ai_system_prompt` (TextField) with current hardcoded default prepopulated.
 
 ### 2. LiteLLM Client Layer (`src/paperless_ai/client.py`)
 
@@ -36,8 +63,10 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 ### 3. Ollama Embedding Backend (`src/paperless_ai/embedding.py`)
 
 -   **Implementation:** Port `LiteLLMEmbedding` class to handle Ollama embedding calls.
+-   **Default Model:** `nomic-embed-text:latest` (v2, 768 dimensions).
 -   **Efficiency:** Implement parallel batch processing for initial document indexing.
 -   **Dimension Discovery:** Logic to fetch embedding dimensions via Ollama's `/api/show` endpoint.
+-   **Model Change Detection:** Check stored dimension in `meta.json`, warn if mismatch detected.
 
 ---
 
@@ -47,7 +76,7 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 -   **PGVector:** Implement the `PGVectorStore` backend to allow storing embeddings in PostgreSQL (requires PostgreSQL database backend and `pgvector` extension). Users running SQLite will continue using FAISS.
 -   **Configurable Backend:** Add `vector_store_backend` choice (AUTO/FAISS/POSTGRES) to the settings. AUTO defaults to FAISS for SQLite and PGVector for PostgreSQL.
--   **Automatic Provisioning:** Logic to create the vector database/extension if permissions allow. Falls back to FAISS with a warning if provisioning fails.
+-   **Automatic Provisioning:** Logic to create the vector database/extension if permissions allow. **Fail hard** (raise exception) if PGVector selected but extension unavailable - no silent FAISS fallback.
 
 ---
 
@@ -57,13 +86,29 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 -   **Dynamic Model Discovery:**
     -   Implement a "Refresh" button or trigger on endpoint change.
-    -   Fetch available models from `GET <endpoint>/api/tags` (Ollama) or `GET <endpoint>/v1/models` (OpenAI-compatible).
+    -   Fetch available models via backend proxy (`GET /api/llm_proxy/?endpoint=X&backend=Y`).
     -   Convert model inputs into searchable dropdowns.
+-   **System Prompt Editor:**
+    -   Multi-line text field prepopulated with default.
+    -   "Reset to Default" button to restore hardcoded prompt.
+-   **Index Management:**
+    -   Display warning banner if embedding model changed (dimension mismatch detected).
+    -   "Rebuild Index" button to trigger `document_llmindex` task.
 -   **Conditional Fields:** Hide/show API key and Endpoint fields based on the selected backend.
 
-### 2. LLM Service Enhancements (`src-ui/src/app/services/llm.service.ts`)
+### 2. Backend Proxy (`src/paperless/views.py`)
 
--   Update the service to proxy model discovery requests through the Paperless backend to avoid CORS issues with local Ollama instances.
+-   **LLMProxyView:**
+    -   `GET /api/llm_proxy/` - Proxy to Ollama `/api/tags` or return static OpenAI model list.
+    -   `POST /api/llm_proxy/test` - Test connection to configured endpoint.
+    -   Normalize endpoint URLs (add http://, strip trailing slash).
+    -   Return standardized `{id, name}[]` format.
+
+### 3. LLM Service (`src-ui/src/app/services/llm.service.ts`)
+
+-   Port `getModels(endpoint, backend)` method from reference branch.
+-   Port `testConnection(config)` method for connection testing.
+-   Handle errors gracefully, return empty array on failure.
 
 ---
 
