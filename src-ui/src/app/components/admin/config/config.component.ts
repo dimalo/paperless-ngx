@@ -14,6 +14,7 @@ import {
   BehaviorSubject,
   Observable,
   Subscription,
+  combineLatest,
   first,
   takeUntil,
 } from 'rxjs'
@@ -24,8 +25,11 @@ import {
   PaperlessConfig,
   PaperlessConfigOptions,
 } from 'src/app/data/paperless-config'
+import { PaperlessTaskName } from 'src/app/data/paperless-task'
 import { ConfigService } from 'src/app/services/config.service'
+import { LLMModel, LLMService } from 'src/app/services/llm.service'
 import { SettingsService } from 'src/app/services/settings.service'
+import { TasksService } from 'src/app/services/tasks.service'
 import { ToastService } from 'src/app/services/toast.service'
 import { FileComponent } from '../../common/input/file/file.component'
 import { NumberComponent } from '../../common/input/number/number.component'
@@ -33,6 +37,7 @@ import { PasswordComponent } from '../../common/input/password/password.componen
 import { SelectComponent } from '../../common/input/select/select.component'
 import { SwitchComponent } from '../../common/input/switch/switch.component'
 import { TextComponent } from '../../common/input/text/text.component'
+import { TextAreaComponent } from '../../common/input/textarea/textarea.component'
 import { PageHeaderComponent } from '../../common/page-header/page-header.component'
 import { LoadingComponentWithPermissions } from '../../loading-component/loading.component'
 
@@ -45,6 +50,7 @@ import { LoadingComponentWithPermissions } from '../../loading-component/loading
     SelectComponent,
     SwitchComponent,
     TextComponent,
+    TextAreaComponent,
     NumberComponent,
     FileComponent,
     PasswordComponent,
@@ -62,13 +68,19 @@ export class ConfigComponent
   private configService = inject(ConfigService)
   private toastService = inject(ToastService)
   private settingsService = inject(SettingsService)
+  private llmService = inject(LLMService)
+  private tasksService = inject(TasksService)
 
   public readonly ConfigOptionType = ConfigOptionType
+  public readonly ConfigCategory = ConfigCategory
 
   // generated dynamically
   public configForm = new FormGroup({})
 
   public errors = {}
+
+  public llmModels: LLMModel[] = []
+  public embeddingModels: LLMModel[] = []
 
   get optionCategories(): string[] {
     return Object.values(ConfigCategory)
@@ -132,6 +144,83 @@ export class ConfigComponent
       })
       this.configForm.get(option.key).updateValueAndValidity()
     })
+
+    // Dynamic model discovery
+    combineLatest([
+      this.configForm.get('llm_backend').valueChanges,
+      this.configForm.get('llm_endpoint').valueChanges,
+      this.configForm.get('llm_api_key').valueChanges,
+    ])
+      .pipe(takeUntil(this.unsubscribeNotifier))
+      .subscribe(([backend, endpoint, apiKey]) => {
+        this.fetchLLMModels(backend, endpoint, apiKey)
+      })
+
+    combineLatest([
+      this.configForm.get('llm_embedding_backend').valueChanges,
+      this.configForm.get('llm_embedding_endpoint').valueChanges,
+      this.configForm.get('llm_embedding_api_key').valueChanges,
+      this.configForm.get('llm_endpoint').valueChanges,
+      this.configForm.get('llm_api_key').valueChanges,
+    ])
+      .pipe(takeUntil(this.unsubscribeNotifier))
+      .subscribe(([backend, endpoint, apiKey, mainEndpoint, mainApiKey]) => {
+        this.fetchEmbeddingModels(
+          backend,
+          endpoint || mainEndpoint,
+          apiKey || mainApiKey
+        )
+      })
+  }
+
+  private fetchLLMModels(backend: string, endpoint: string, apiKey: string) {
+    if (endpoint && backend) {
+      this.llmService
+        .getModels(endpoint, backend, apiKey)
+        .pipe(first())
+        .subscribe((models) => {
+          this.llmModels = models
+        })
+    }
+  }
+
+  private fetchEmbeddingModels(
+    backend: string,
+    endpoint: string,
+    apiKey: string
+  ) {
+    if (endpoint && backend) {
+      this.llmService
+        .getModels(endpoint, backend, apiKey)
+        .pipe(first())
+        .subscribe((models) => {
+          this.embeddingModels = models
+        })
+    }
+  }
+
+  public refreshModels() {
+    const val = this.configForm.value
+    this.fetchLLMModels(val.llm_backend, val.llm_endpoint, val.llm_api_key)
+    this.fetchEmbeddingModels(
+      val.llm_embedding_backend,
+      val.llm_embedding_endpoint || val.llm_endpoint,
+      val.llm_embedding_api_key || val.llm_api_key
+    )
+  }
+
+  public rebuildIndex() {
+    this.tasksService
+      .run(PaperlessTaskName.LLMIndexUpdate)
+      .pipe(first())
+      .subscribe({
+        next: () => {
+          this.toastService.showInfo($localize`Index rebuild task queued`)
+        },
+        error: (e) => {
+          this.toastService.showError($localize`Error queuing index rebuild`, e)
+        },
+      })
   }
 
   ngOnDestroy(): void {
@@ -155,6 +244,9 @@ export class ConfigComponent
     this.configForm.patchValue(config)
 
     this.initialConfig = config
+
+    // Trigger initial model fetch
+    this.refreshModels()
   }
 
   getDocsUrl(key: string) {
@@ -186,6 +278,7 @@ export class ConfigComponent
 
   public discardChanges() {
     this.configForm.reset(this.initialConfig)
+    this.refreshModels()
   }
 
   public uploadFile(file: File, key: string) {

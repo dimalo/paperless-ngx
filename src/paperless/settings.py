@@ -347,6 +347,7 @@ INSTALLED_APPS = [
     "paperless_text.apps.PaperlessTextConfig",
     "paperless_mail.apps.PaperlessMailConfig",
     "paperless_remote.apps.PaperlessRemoteParserConfig",
+    "paperless_ai.apps.PaperlessAIConfig",
     "django.contrib.admin",
     "rest_framework",
     "rest_framework.authtoken",
@@ -1455,9 +1456,20 @@ REMOTE_OCR_ENDPOINT = os.getenv("PAPERLESS_REMOTE_OCR_ENDPOINT")
 AI_ENABLED = __get_boolean("PAPERLESS_AI_ENABLED", "NO")
 LLM_EMBEDDING_BACKEND = os.getenv(
     "PAPERLESS_AI_LLM_EMBEDDING_BACKEND",
-)  # "huggingface" or "openai"
+)  # "huggingface", "openai" or "ollama"
 LLM_EMBEDDING_MODEL = os.getenv("PAPERLESS_AI_LLM_EMBEDDING_MODEL")
+LLM_EMBEDDING_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT")
+LLM_EMBEDDING_API_KEY = os.getenv("PAPERLESS_AI_LLM_EMBEDDING_API_KEY")
 LLM_BACKEND = os.getenv("PAPERLESS_AI_LLM_BACKEND")  # "ollama" or "openai"
 LLM_MODEL = os.getenv("PAPERLESS_AI_LLM_MODEL")
 LLM_API_KEY = os.getenv("PAPERLESS_AI_LLM_API_KEY")
 LLM_ENDPOINT = os.getenv("PAPERLESS_AI_LLM_ENDPOINT")
+LLM_TIMEOUT = __get_int("PAPERLESS_AI_LLM_TIMEOUT", 120)
+VECTOR_STORE_BACKEND = os.getenv("PAPERLESS_AI_VECTOR_STORE_BACKEND", "auto")
+AI_SYSTEM_PROMPT = os.getenv("PAPERLESS_AI_SYSTEM_PROMPT")
+
+VECTOR_STORE_HOST = os.getenv("PAPERLESS_AI_VECTOR_STORE_HOST")
+VECTOR_STORE_PORT = __get_optional_int("PAPERLESS_AI_VECTOR_STORE_PORT")
+VECTOR_STORE_USER = os.getenv("PAPERLESS_AI_VECTOR_STORE_USER")
+VECTOR_STORE_PASSWORD = os.getenv("PAPERLESS_AI_VECTOR_STORE_PASSWORD")
+VECTOR_STORE_DATABASE = os.getenv("PAPERLESS_AI_VECTOR_STORE_DATABASE")

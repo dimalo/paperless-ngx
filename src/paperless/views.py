@@ -1,6 +1,9 @@
+import socket
 from collections import OrderedDict
 from pathlib import Path
+from urllib.parse import urlparse
 
+import requests
 from allauth.mfa import signals
 from allauth.mfa.adapter import get_adapter as get_mfa_adapter
 from allauth.mfa.base.internal.flows import delete_and_cleanup
@@ -29,8 +32,10 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.generics import GenericAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import DjangoModelPermissions
+from rest_framework.permissions import IsAdminUser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from documents.index import DelayedQuery
@@ -45,6 +50,120 @@ from paperless.serialisers import PaperlessAuthTokenSerializer
 from paperless.serialisers import ProfileSerializer
 from paperless.serialisers import UserSerializer
 from paperless_ai.indexing import vector_store_file_exists
+
+
+def is_safe_url(url):
+    """
+    Basic SSRF protection: block local/private IP ranges.
+    """
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or parsed.scheme not in ["http", "https"]:
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Resolve to IP to check for internal ranges
+        ip = socket.gethostbyname(hostname)
+
+        # Block loopback, private networks, and link-local
+        # This is a basic check; for production, use a more robust library or allow-list.
+        parts = list(map(int, ip.split(".")))
+        return not (
+            parts[0] == 127
+            or parts[0] == 10
+            or (parts[0] == 172 and 16 <= parts[1] <= 31)
+            or (parts[0] == 192 and parts[1] == 168)
+            or (parts[0] == 169 and parts[1] == 254)
+        )
+    except Exception:
+        return False
+
+
+class LLMProxyView(APIView):
+    """
+    Proxy for LLM model discovery and connection testing.
+    Strictly limited to admins and validated for SSRF.
+    """
+
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        endpoint = request.query_params.get("endpoint")
+        backend = request.query_params.get("backend", "ollama")
+
+        if not endpoint:
+            return Response({"error": "Endpoint is required"}, status=400)
+
+        # Normalize endpoint
+        endpoint = endpoint.rstrip("/")
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+
+        if not is_safe_url(endpoint):
+            return Response(
+                {"error": "Forbidden endpoint (SSRF protection)"},
+                status=403,
+            )
+
+        try:
+            if backend == "ollama":
+                resp = requests.get(f"{endpoint}/api/tags", timeout=5)
+                if resp.status_code == 200:
+                    models = [
+                        {"id": m["name"], "name": m["name"]}
+                        for m in resp.json().get("models", [])
+                    ]
+                    return Response(models)
+            elif backend == "openai":
+                headers = {}
+                api_key = request.query_params.get("api_key")
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+
+                resp = requests.get(f"{endpoint}/v1/models", headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    models = [
+                        {"id": m["id"], "name": m["id"]}
+                        for m in resp.json().get("data", [])
+                    ]
+                    return Response(models)
+
+            return Response([])
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+    def post(self, request, *args, **kwargs):
+        """
+        Connection test endpoint.
+        """
+        endpoint = request.data.get("endpoint")
+        if not endpoint:
+            return Response({"error": "Endpoint is required"}, status=400)
+
+        endpoint = endpoint.rstrip("/")
+        if not endpoint.startswith("http"):
+            endpoint = f"http://{endpoint}"
+
+        if not is_safe_url(endpoint):
+            return Response(
+                {"error": "Forbidden endpoint (SSRF protection)"},
+                status=403,
+            )
+
+        try:
+            # Fast check: Ollama version or OpenAI base
+            resp = requests.get(f"{endpoint}/api/version", timeout=3)
+            if resp.status_code == 200:
+                return Response({"status": "ok", "version": resp.json().get("version")})
+
+            # Fallback for OpenAI style
+            resp = requests.get(endpoint, timeout=3)
+            return Response({"status": "ok"})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
 
 
 class PaperlessObtainAuthTokenView(ObtainAuthToken):

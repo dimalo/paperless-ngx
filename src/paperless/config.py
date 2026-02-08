@@ -184,10 +184,20 @@ class AIConfig(BaseConfig):
     ai_enabled: bool = dataclasses.field(init=False)
     llm_embedding_backend: str = dataclasses.field(init=False)
     llm_embedding_model: str = dataclasses.field(init=False)
+    llm_embedding_endpoint: str = dataclasses.field(init=False)
+    llm_embedding_api_key: str = dataclasses.field(init=False)
     llm_backend: str = dataclasses.field(init=False)
     llm_model: str = dataclasses.field(init=False)
     llm_api_key: str = dataclasses.field(init=False)
     llm_endpoint: str = dataclasses.field(init=False)
+    llm_timeout: int = dataclasses.field(init=False)
+    vector_store_backend: str = dataclasses.field(init=False)
+    ai_system_prompt: str = dataclasses.field(init=False)
+    vector_store_host: str = dataclasses.field(init=False)
+    vector_store_port: int = dataclasses.field(init=False)
+    vector_store_user: str = dataclasses.field(init=False)
+    vector_store_password: str = dataclasses.field(init=False)
+    vector_store_database: str = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         app_config = self._get_config_instance()
@@ -199,10 +209,36 @@ class AIConfig(BaseConfig):
         self.llm_embedding_model = (
             app_config.llm_embedding_model or settings.LLM_EMBEDDING_MODEL
         )
+        self.llm_embedding_endpoint = (
+            app_config.llm_embedding_endpoint or settings.LLM_EMBEDDING_ENDPOINT
+        )
+        self.llm_embedding_api_key = (
+            app_config.llm_embedding_api_key or settings.LLM_EMBEDDING_API_KEY
+        )
         self.llm_backend = app_config.llm_backend or settings.LLM_BACKEND
         self.llm_model = app_config.llm_model or settings.LLM_MODEL
         self.llm_api_key = app_config.llm_api_key or settings.LLM_API_KEY
         self.llm_endpoint = app_config.llm_endpoint or settings.LLM_ENDPOINT
+        self.llm_timeout = app_config.llm_timeout or settings.LLM_TIMEOUT
+        self.vector_store_backend = (
+            app_config.vector_store_backend or settings.VECTOR_STORE_BACKEND
+        )
+        self.ai_system_prompt = app_config.ai_system_prompt or settings.AI_SYSTEM_PROMPT
+        self.vector_store_host = (
+            app_config.vector_store_host or settings.VECTOR_STORE_HOST
+        )
+        self.vector_store_port = (
+            app_config.vector_store_port or settings.VECTOR_STORE_PORT
+        )
+        self.vector_store_user = (
+            app_config.vector_store_user or settings.VECTOR_STORE_USER
+        )
+        self.vector_store_password = (
+            app_config.vector_store_password or settings.VECTOR_STORE_PASSWORD
+        )
+        self.vector_store_database = (
+            app_config.vector_store_database or settings.VECTOR_STORE_DATABASE
+        )
 
     @property
     def llm_index_enabled(self) -> bool:

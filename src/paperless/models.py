@@ -77,6 +77,7 @@ class ColorConvertChoices(models.TextChoices):
 class LLMEmbeddingBackend(models.TextChoices):
     OPENAI = ("openai", _("OpenAI"))
     HUGGINGFACE = ("huggingface", _("Huggingface"))
+    OLLAMA = ("ollama", _("Ollama"))
 
 
 class LLMBackend(models.TextChoices):
@@ -86,6 +87,12 @@ class LLMBackend(models.TextChoices):
 
     OPENAI = ("openai", _("OpenAI"))
     OLLAMA = ("ollama", _("Ollama"))
+
+
+class VectorStoreChoices(models.TextChoices):
+    AUTO = ("auto", _("Automatic (suggested)"))
+    FAISS = ("faiss", _("FAISS (local files)"))
+    POSTGRES = ("postgres", _("Postgres (PGVector)"))
 
 
 class ApplicationConfiguration(AbstractSingletonModel):
@@ -310,6 +317,20 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=128,
     )
 
+    llm_embedding_endpoint = models.CharField(
+        verbose_name=_("Sets the LLM embedding endpoint, optional"),
+        blank=True,
+        null=True,
+        max_length=256,
+    )
+
+    llm_embedding_api_key = models.CharField(
+        verbose_name=_("Sets the LLM embedding API key, optional"),
+        blank=True,
+        null=True,
+        max_length=1024,
+    )
+
     llm_backend = models.CharField(
         verbose_name=_("Sets the LLM backend"),
         blank=True,
@@ -339,7 +360,62 @@ class ApplicationConfiguration(AbstractSingletonModel):
         max_length=256,
     )
 
-    class Meta:
+    llm_timeout = models.PositiveIntegerField(
+        verbose_name=_("LLM request timeout (seconds)"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    vector_store_backend = models.CharField(
+        verbose_name=_("Vector store backend"),
+        blank=True,
+        null=True,
+        max_length=16,
+        choices=VectorStoreChoices.choices,
+        default=VectorStoreChoices.AUTO,
+    )
+
+    ai_system_prompt = models.TextField(
+        verbose_name=_("AI system prompt"),
+        null=True,
+        blank=True,
+    )
+
+    vector_store_host = models.CharField(
+        verbose_name=_("Vector store host"),
+        blank=True,
+        null=True,
+        max_length=256,
+    )
+
+    vector_store_port = models.PositiveIntegerField(
+        verbose_name=_("Vector store port"),
+        null=True,
+        validators=[MinValueValidator(1)],
+    )
+
+    vector_store_user = models.CharField(
+        verbose_name=_("Vector store user"),
+        blank=True,
+        null=True,
+        max_length=256,
+    )
+
+    vector_store_password = models.CharField(
+        verbose_name=_("Vector store password"),
+        blank=True,
+        null=True,
+        max_length=1024,
+    )
+
+    vector_store_database = models.CharField(
+        verbose_name=_("Vector store database"),
+        blank=True,
+        null=True,
+        max_length=256,
+    )
+
+    class Meta(AbstractSingletonModel.Meta):
         verbose_name = _("paperless application settings")
 
     def __str__(self) -> str:  # pragma: no cover

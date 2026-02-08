@@ -45,6 +45,7 @@ export enum ConfigOptionType {
   JSON = 'json',
   File = 'file',
   Password = 'password',
+  Textarea = 'textarea',
 }
 
 export const ConfigCategory = {
@@ -57,11 +58,18 @@ export const ConfigCategory = {
 export const LLMEmbeddingBackendConfig = {
   OPENAI: 'openai',
   HUGGINGFACE: 'huggingface',
+  OLLAMA: 'ollama',
 }
 
 export const LLMBackendConfig = {
   OPENAI: 'openai',
   OLLAMA: 'ollama',
+}
+
+export const VectorStoreConfig = {
+  AUTO: 'auto',
+  FAISS: 'faiss',
+  POSTGRES: 'postgres',
 }
 
 export interface ConfigOption {
@@ -302,6 +310,22 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     category: ConfigCategory.AI,
   },
   {
+    key: 'llm_embedding_endpoint',
+    title: $localize`LLM Embedding Endpoint`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT',
+    category: ConfigCategory.AI,
+    note: $localize`Optional. Defaults to main LLM endpoint if not set.`,
+  },
+  {
+    key: 'llm_embedding_api_key',
+    title: $localize`LLM Embedding API Key`,
+    type: ConfigOptionType.Password,
+    config_key: 'PAPERLESS_AI_LLM_EMBEDDING_API_KEY',
+    category: ConfigCategory.AI,
+    note: $localize`Optional. Defaults to main LLM API key if not set.`,
+  },
+  {
     key: 'llm_backend',
     title: $localize`LLM Backend`,
     type: ConfigOptionType.Select,
@@ -328,6 +352,33 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     title: $localize`LLM Endpoint`,
     type: ConfigOptionType.String,
     config_key: 'PAPERLESS_AI_LLM_ENDPOINT',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'llm_timeout',
+    title: $localize`LLM Timeout`,
+    type: ConfigOptionType.Number,
+    config_key: 'PAPERLESS_AI_LLM_TIMEOUT',
+    category: ConfigCategory.AI,
+    note: $localize`Global timeout for LLM and Embedding requests in seconds. Increase for slower local models.`,
+  },
+  {
+    key: 'vector_store_backend',
+    title: $localize`Vector Store Backend`,
+    type: ConfigOptionType.Select,
+    choices: [
+      { id: 'auto', name: $localize`Automatic` },
+      { id: 'faiss', name: $localize`FAISS (local files)` },
+      { id: 'postgres', name: $localize`Postgres (PGVector)` },
+    ],
+    config_key: 'PAPERLESS_AI_VECTOR_STORE_BACKEND',
+    category: ConfigCategory.AI,
+  },
+  {
+    key: 'ai_system_prompt',
+    title: $localize`AI System Prompt`,
+    type: ConfigOptionType.Textarea,
+    config_key: 'PAPERLESS_AI_SYSTEM_PROMPT',
     category: ConfigCategory.AI,
   },
 ]
@@ -363,8 +414,13 @@ export interface PaperlessConfig extends ObjectWithId {
   ai_enabled: boolean
   llm_embedding_backend: string
   llm_embedding_model: string
+  llm_embedding_endpoint: string
+  llm_embedding_api_key: string
   llm_backend: string
   llm_model: string
   llm_api_key: string
   llm_endpoint: string
+  llm_timeout: number
+  vector_store_backend: string
+  ai_system_prompt: string
 }
