@@ -114,9 +114,12 @@ def get_supported_file_extensions() -> set[str]:
     return extensions
 
 
-def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | None:
+def get_parser_class_for_mime_type(
+    mime_type: str,
+    preferred_engine: str | None = None,
+) -> type[DocumentParser] | None:
     """
-    Returns the best parser (by weight or OCR engine preference) for the given mimetype or
+    Returns the best parser (by priority or weight) for the given mimetype or
     None if no parser exists
     """
 
@@ -135,29 +138,37 @@ def get_parser_class_for_mime_type(mime_type: str) -> type[DocumentParser] | Non
     if not options:
         return None
 
-    def get_priority(declaration):
-        parser_class = declaration["parser"]
+    # 1. Handle Workflow Override (absolute priority)
+    if preferred_engine:
+        for opt in options:
+            if opt.get("engine_id") == preferred_engine:
+                return opt["parser"]
 
-        # Check Application Configuration first
-        from paperless.models import ApplicationConfiguration
-
-        config = ApplicationConfiguration.objects.first()
-        ocr_engine = (
-            config.ocr_engine
-            if config and config.ocr_engine
-            else getattr(settings, "OCR_ENGINE", "tesseract")
+        logger.warning(
+            f"Preferred OCR engine '{preferred_engine}' not available for MIME type {mime_type}, falling back to global priority.",
         )
 
-        if (
-            ocr_engine == "docling" and parser_class.__name__ == "DoclingDocumentParser"
-        ) or (
-            ocr_engine == "ollama" and parser_class.__name__ == "OllamaDocumentParser"
-        ):
-            return 100
-        else:
-            return declaration["weight"]
+    # 2. Get Global Priority List
+    from paperless.models import ApplicationConfiguration
 
-    best_parser = sorted(options, key=get_priority, reverse=True)[0]
+    config = ApplicationConfiguration.objects.first()
+    priority_str = (
+        config.ocr_engine_priority
+        if config and config.ocr_engine_priority
+        else settings.OCR_ENGINE_PRIORITY
+    )
+    priority_list = [p.strip() for p in priority_str.split(",") if p.strip()]
+
+    def get_priority_score(declaration):
+        engine_id = declaration.get("engine_id")
+        if engine_id and engine_id in priority_list:
+            # Earlier in list = higher score
+            return 1000 - priority_list.index(engine_id)
+        # Fallback to default weight
+        return declaration.get("weight", 0)
+
+    # 3. Selection: Sort by priority score (primary) and weight (secondary)
+    best_parser = sorted(options, key=get_priority_score, reverse=True)[0]
 
     # Return the parser with the highest priority.
     return best_parser["parser"]
