@@ -11,7 +11,6 @@ class Migration(migrations.Migration):
             "paperless",
             "0015_remove_applicationconfiguration_vector_store_name_and_more",
         ),
-        ("paperless", "0007_applicationconfiguration_ai_system_prompt_and_more"),
     ]
 
     operations = [
