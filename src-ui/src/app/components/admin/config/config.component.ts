@@ -252,7 +252,7 @@ export class ConfigComponent
   }
 
   public refreshModels() {
-    const val = this.configForm.value
+    const val = this.configForm.value as PaperlessConfig
     this.fetchLLMModels(val.llm_backend, val.llm_endpoint, val.llm_api_key)
     this.fetchEmbeddingModels(
       val.llm_embedding_backend,
@@ -277,7 +277,7 @@ export class ConfigComponent
 
   public testConnection(key: string) {
     this.testInProgress[key] = true
-    const val = this.configForm.value
+    const val = this.configForm.value as PaperlessConfig
 
     let obs: Observable<any>
     if (key === 'llm_api_key') {
