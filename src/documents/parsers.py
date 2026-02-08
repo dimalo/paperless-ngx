@@ -137,17 +137,9 @@ def get_parser_class_for_mime_type(
 
     # 1. Handle Workflow Override (absolute priority)
     if preferred_engine:
-        # Compatibility: map legacy 'docling' to specific engines
-        engine_ids = (
-            ["docling_local", "docling_remote"]
-            if preferred_engine == "docling"
-            else [preferred_engine]
-        )
-
-        for eid in engine_ids:
-            for opt in options:
-                if opt.get("engine_id") == eid:
-                    return opt["parser"]
+        for opt in options:
+            if opt.get("engine_id") == preferred_engine:
+                return opt["parser"]
 
         logger.warning(
             f"Preferred OCR engine '{preferred_engine}' not available for MIME type {mime_type}, falling back to global priority.",
@@ -162,17 +154,7 @@ def get_parser_class_for_mime_type(
         if config and config.ocr_engine_priority
         else settings.OCR_ENGINE_PRIORITY
     )
-    # Map legacy 'docling' to 'docling_local' or 'docling_remote' for compatibility
-    priority_list = []
-    for p in priority_str.split(","):
-        p = p.strip()
-        if not p:
-            continue
-        if p == "docling":
-            # Add both for compatibility, local prioritized
-            priority_list.extend(["docling_local", "docling_remote"])
-        else:
-            priority_list.append(p)
+    priority_list = [p.strip() for p in priority_str.split(",") if p.strip()]
 
     def get_priority_score(declaration):
         engine_id = declaration.get("engine_id")
@@ -387,7 +369,3 @@ class DocumentParser(LoggingMixin):
     def cleanup(self) -> None:
         self.log.debug(f"Deleting directory {self.tempdir}")
         shutil.rmtree(self.tempdir)
-
-
-# POLLING_DEBUG_v1
-# ABSOLUTE_PATH_v1
