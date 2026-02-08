@@ -59,16 +59,19 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 ### 2. LiteLLM Client Layer (`src/paperless_ai/client.py`)
 
--   **Migration:** Replace direct `OpenAI`/`Ollama` classes with `litellm` for broader backend compatibility (OpenAI-compatible APIs, vLLM, etc.).
--   **Reasoning Removal:** Implement `_clean_response` to strip `<think>...</think>` tags (crucial for DeepSeek Reasoner and similar models).
--   **JSON Robustness:** Use explicit schema injection in prompts and manual JSON extraction for local models that struggle with API-level JSON mode.
+-   **Migration:** Replace direct `OpenAI`/`Ollama` classes with `litellm.completion` for broader backend compatibility.
+-   **Reasoning Removal:** Implement `_clean_response` to strip `<think>...</think>` tags (crucial for DeepSeek Reasoner).
+    -   Check `message.reasoning_content` first (LiteLLM feature).
+    -   Fallback to regex removal for raw content.
+    -   Handle unclosed/orphaned tags.
+-   **JSON Robustness:** Use explicit schema injection in prompts and manual JSON extraction.
 
 ### 3. Ollama Embedding Backend (`src/paperless_ai/embedding.py`)
 
--   **Implementation:** Port `LiteLLMEmbedding` class to handle Ollama embedding calls.
+-   **Implementation:** Port `LiteLLMEmbedding` class to handle Ollama embedding calls via `litellm.embedding`.
 -   **Default Model:** `nomic-embed-text:latest` (v2, 768 dimensions).
 -   **Efficiency:** Implement parallel batch processing for initial document indexing.
--   **Dimension Discovery:** Logic to fetch embedding dimensions via Ollama's `/api/show` endpoint.
+-   **Dimension Discovery:** Logic to fetch embedding dimensions via Ollama's `/api/show` endpoint if `meta.json` missing.
 -   **Model Change Detection:** Check stored dimension in `meta.json`, warn if mismatch detected.
 
 ---
@@ -77,9 +80,10 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 
 ### 1. Database Support (`src/paperless_ai/vector_store.py`)
 
--   **PGVector:** Implement the `PGVectorStore` backend to allow storing embeddings in PostgreSQL (requires PostgreSQL database backend and `pgvector` extension). Users running SQLite will continue using FAISS.
--   **Configurable Backend:** Add `vector_store_backend` choice (AUTO/FAISS/POSTGRES) to the settings. AUTO defaults to FAISS for SQLite and PGVector for PostgreSQL.
--   **Automatic Provisioning:** Logic to create the vector database/extension if permissions allow. **Fail hard** (raise exception) if PGVector selected but extension unavailable - no silent FAISS fallback.
+-   **PGVector:** Implement the `PGVectorStore` backend (using `llama-index-vector-stores-postgres`).
+-   **Setup Logic:** check `pg_extension` table for `vector` extension.
+-   **Configurable Backend:** Add `vector_store_backend` choice (AUTO/FAISS/POSTGRES) to the settings.
+-   **Automatic Provisioning:** Logic to create the vector database/extension if permissions allow. **Fail hard** (raise exception) if PGVector selected but extension unavailable.
 
 ---
 
@@ -102,8 +106,9 @@ This document outlines the plan for porting the **Ollama AI Integration** and **
 ### 2. Backend Proxy (`src/paperless/views.py`)
 
 -   **LLMProxyView:**
+    -   **Permission:** `IsAdminUser` (strict security).
     -   `GET /api/llm_proxy/` - Proxy to Ollama `/api/tags` or return static OpenAI model list.
-    -   `POST /api/llm_proxy/test` - Test connection to configured endpoint.
+    -   `POST /api/llm_proxy/test` - Test connection to configured endpoint (fast path: `/api/version`).
     -   Normalize endpoint URLs (add http://, strip trailing slash).
     -   Return standardized `{id, name}[]` format.
 
