@@ -1874,13 +1874,25 @@ suggestions. This setting is required to be set to true in order to use the AI f
 
 #### [`PAPERLESS_AI_LLM_EMBEDDING_BACKEND=<str>`](#PAPERLESS_AI_LLM_EMBEDDING_BACKEND) {#PAPERLESS_AI_LLM_EMBEDDING_BACKEND}
 
-: The embedding backend to use for RAG. This can be either "openai" or "huggingface".
+: The embedding backend to use for RAG. This can be "openai", "huggingface" or "ollama".
 
     Defaults to None.
 
 #### [`PAPERLESS_AI_LLM_EMBEDDING_MODEL=<str>`](#PAPERLESS_AI_LLM_EMBEDDING_MODEL) {#PAPERLESS_AI_LLM_EMBEDDING_MODEL}
 
-: The model to use for the embedding backend for RAG. This can be set to any of the embedding models supported by the current embedding backend. If not supplied, defaults to "text-embedding-3-small" for OpenAI and "sentence-transformers/all-MiniLM-L6-v2" for Huggingface.
+: The model to use for the embedding backend for RAG. This can be set to any of the embedding models supported by the current embedding backend. If not supplied, defaults to "text-embedding-3-small" for OpenAI, "sentence-transformers/all-MiniLM-L6-v2" for Huggingface, and "nomic-embed-text" for Ollama.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT=<str>`](#PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT) {#PAPERLESS_AI_LLM_EMBEDDING_ENDPOINT}
+
+: The endpoint / url to use for the embedding backend. Only required if the embedding backend is "ollama" and differs from `PAPERLESS_AI_LLM_ENDPOINT`.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_LLM_EMBEDDING_API_KEY=<str>`](#PAPERLESS_AI_LLM_EMBEDDING_API_KEY) {#PAPERLESS_AI_LLM_EMBEDDING_API_KEY}
+
+: The API key to use for the embedding backend. Only used for "openai" or external providers.
 
     Defaults to None.
 
@@ -1917,6 +1929,54 @@ current backend. If not supplied, defaults to "gpt-3.5-turbo" for OpenAI and "ll
 #### [`PAPERLESS_AI_LLM_ENDPOINT=<str>`](#PAPERLESS_AI_LLM_ENDPOINT) {#PAPERLESS_AI_LLM_ENDPOINT}
 
 : The endpoint / url to use for the AI backend. This is required for the Ollama backend (optional for others).
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_LLM_TIMEOUT=<int>`](#PAPERLESS_AI_LLM_TIMEOUT) {#PAPERLESS_AI_LLM_TIMEOUT}
+
+: The timeout in seconds for LLM requests.
+
+    Defaults to 120.
+
+#### [`PAPERLESS_AI_SYSTEM_PROMPT=<str>`](#PAPERLESS_AI_SYSTEM_PROMPT) {#PAPERLESS_AI_SYSTEM_PROMPT}
+
+: A custom system prompt to guide the AI's behavior and tone.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_VECTOR_STORE_BACKEND=<str>`](#PAPERLESS_AI_VECTOR_STORE_BACKEND) {#PAPERLESS_AI_VECTOR_STORE_BACKEND}
+
+: The backend to use for vector storage. Options are "auto", "faiss" (local file-based), or "postgres" (requires pgvector extension). "auto" will prefer Postgres if available.
+
+    Defaults to "auto".
+
+#### [`PAPERLESS_AI_VECTOR_STORE_HOST=<str>`](#PAPERLESS_AI_VECTOR_STORE_HOST) {#PAPERLESS_AI_VECTOR_STORE_HOST}
+
+: Hostname for a separate vector store database. If not set, defaults to the primary database host.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_VECTOR_STORE_PORT=<int>`](#PAPERLESS_AI_VECTOR_STORE_PORT) {#PAPERLESS_AI_VECTOR_STORE_PORT}
+
+: Port for a separate vector store database. If not set, defaults to the primary database port.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_VECTOR_STORE_USER=<str>`](#PAPERLESS_AI_VECTOR_STORE_USER) {#PAPERLESS_AI_VECTOR_STORE_USER}
+
+: Username for a separate vector store database. If not set, defaults to the primary database user.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_VECTOR_STORE_PASSWORD=<str>`](#PAPERLESS_AI_VECTOR_STORE_PASSWORD) {#PAPERLESS_AI_VECTOR_STORE_PASSWORD}
+
+: Password for a separate vector store database. If not set, defaults to the primary database password.
+
+    Defaults to None.
+
+#### [`PAPERLESS_AI_VECTOR_STORE_DATABASE=<str>`](#PAPERLESS_AI_VECTOR_STORE_DATABASE) {#PAPERLESS_AI_VECTOR_STORE_DATABASE}
+
+: Database name for a separate vector store database. If not set, defaults to the primary database name.
 
     Defaults to None.
 
