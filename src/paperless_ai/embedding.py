@@ -50,9 +50,12 @@ class LiteLLMEmbedding(BaseEmbedding):
 
     def _get_model_with_prefix(self) -> str:
         """Get model name with appropriate prefix for LiteLLM."""
-        # If using custom API base (OpenAI-compatible endpoint), use model name as-is
+        # If using custom API base (OpenAI-compatible endpoint), use openai/ prefix
+        # so LiteLLM knows which API format to use
         if self.api_base:
-            return self.model_name
+            if self.model_name.startswith("openai/"):
+                return self.model_name
+            return f"openai/{self.model_name}"
         # Otherwise use ollama prefix for direct Ollama connections
         if "/" in self.model_name:
             return self.model_name
