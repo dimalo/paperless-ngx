@@ -52,8 +52,6 @@ class AIClient:
 
         For backward compatibility, if the model doesn't have a prefix,
         prepend the backend name (e.g., "llama3.1" -> "ollama/llama3.1").
-        When using a custom endpoint (api_base set), we add the "openai/" prefix
-        so LiteLLM knows it's an OpenAI-compatible API.
         """
         model = self.settings.llm_model or "llama3.1"
         backend = self.settings.llm_backend or "ollama"
@@ -61,11 +59,6 @@ class AIClient:
         # If model already has a prefix (contains /), use as-is
         if "/" in model:
             return model
-
-        # If using a custom endpoint (not official OpenAI API), use openai/ prefix
-        # so LiteLLM knows which API format to use
-        if self.settings.llm_endpoint:
-            return f"openai/{model}"
 
         # Otherwise, prepend the backend as prefix
         return f"{backend}/{model}"

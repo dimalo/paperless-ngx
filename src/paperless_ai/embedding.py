@@ -31,6 +31,7 @@ class LiteLLMEmbedding(BaseEmbedding):
     api_base: str | None = None
     api_key: str | None = None
     timeout: int = 60
+    backend: str = "ollama"
     MAX_RETRIES: int = 2
     BATCH_SIZE: int = 4
 
@@ -40,6 +41,7 @@ class LiteLLMEmbedding(BaseEmbedding):
         api_base: str | None = None,
         api_key: str | None = None,
         timeout: int = 60,
+        backend: str = "ollama",
         **kwargs: Any,
     ) -> None:
         super().__init__(model_name=model_name, **kwargs)
@@ -47,15 +49,16 @@ class LiteLLMEmbedding(BaseEmbedding):
         self.api_base = api_base
         self.api_key = api_key
         self.timeout = timeout
+        self.backend = backend
 
     def _get_model_with_prefix(self) -> str:
         """Get model name with appropriate prefix for LiteLLM."""
-        # If using custom API base (OpenAI-compatible endpoint), use openai/ prefix
+        # If using custom API base (OpenAI-compatible endpoint), add the backend prefix
         # so LiteLLM knows which API format to use
         if self.api_base:
-            if self.model_name.startswith("openai/"):
+            if "/" in self.model_name:
                 return self.model_name
-            return f"openai/{self.model_name}"
+            return f"{self.backend}/{self.model_name}"
         # Otherwise use ollama prefix for direct Ollama connections
         if "/" in self.model_name:
             return self.model_name
@@ -193,6 +196,7 @@ def get_embedding_model() -> BaseEmbedding:
                 api_base=str(custom_endpoint),
                 api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
                 timeout=int(config.llm_timeout or 60),
+                backend="openai",
             )
         return OpenAIEmbedding(
             model=str(config.llm_embedding_model or "text-embedding-3-small"),
@@ -212,6 +216,7 @@ def get_embedding_model() -> BaseEmbedding:
             ),
             api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
             timeout=int(config.llm_timeout or 60),
+            backend="ollama",
         )
     else:
         # Fallback/Legacy
