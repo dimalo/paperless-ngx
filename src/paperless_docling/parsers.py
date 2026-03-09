@@ -87,7 +87,7 @@ class DoclingDocumentParser(ImageDocumentParser):
         with file_path.open("rb") as f:
             files = {"files": (file_path.name, f, "application/octet-stream")}
             response = requests.post(
-                f"{self.settings.endpoint}/v1alpha/convert/file/async",
+                f"{self.settings.endpoint}/v1/convert/file/async",
                 data=data,
                 files=files,
                 headers=headers,
@@ -105,7 +105,7 @@ class DoclingDocumentParser(ImageDocumentParser):
         while True:
             time.sleep(1)
             response = requests.get(
-                f"{self.settings.endpoint}/v1alpha/status/poll/{task_id}",
+                f"{self.settings.endpoint}/v1/status/poll/{task_id}",
                 headers=headers,
                 timeout=self.settings.timeout,
             )
@@ -117,7 +117,7 @@ class DoclingDocumentParser(ImageDocumentParser):
 
             if task_status in ["success", "finished", "completed"]:
                 result_response = requests.get(
-                    f"{self.settings.endpoint}/v1alpha/result/{task_id}",
+                    f"{self.settings.endpoint}/v1/result/{task_id}",
                     headers=headers,
                     timeout=self.settings.timeout,
                 )
@@ -128,7 +128,7 @@ class DoclingDocumentParser(ImageDocumentParser):
                 # Try to get the result anyway, it might contain the error message
                 try:
                     res = requests.get(
-                        f"{self.settings.endpoint}/v1alpha/result/{task_id}",
+                        f"{self.settings.endpoint}/v1/result/{task_id}",
                         headers=headers,
                         timeout=5,
                     )
