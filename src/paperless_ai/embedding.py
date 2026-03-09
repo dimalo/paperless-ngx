@@ -176,6 +176,16 @@ def get_embedding_model() -> BaseEmbedding:
         raise ValueError(f"Unsupported embedding backend: {backend}")
 
     if backend == LLMEmbeddingBackend.OPENAI:
+        # Check if using custom endpoint (OpenAI-compatible but not official API)
+        custom_endpoint = config.llm_embedding_endpoint or config.llm_endpoint
+        if custom_endpoint and custom_endpoint != "https://api.openai.com/v1":
+            # Use LiteLLM for custom endpoints to avoid model name validation
+            return LiteLLMEmbedding(
+                model_name=str(config.llm_embedding_model or "text-embedding-3-small"),
+                api_base=str(custom_endpoint),
+                api_key=str(config.llm_embedding_api_key or config.llm_api_key or ""),
+                timeout=int(config.llm_timeout or 60),
+            )
         return OpenAIEmbedding(
             model=str(config.llm_embedding_model or "text-embedding-3-small"),
             api_key=str(config.llm_api_key or ""),
