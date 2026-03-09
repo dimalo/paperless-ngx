@@ -213,7 +213,7 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
         return "No documents found to index."
 
     batch_size = 50  # Smaller batches to control memory and API rate limits
-    doc_iterator = documents.iterator()
+    doc_iterator = documents.iterator(chunk_size=batch_size)
 
     if rebuild or not vector_store_file_exists():
         if rebuild:
