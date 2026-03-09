@@ -52,12 +52,18 @@ class AIClient:
 
         For backward compatibility, if the model doesn't have a prefix,
         prepend the backend name (e.g., "llama3.1" -> "ollama/llama3.1").
+        When using a custom endpoint (api_base set), we don't add the prefix
+        since the endpoint is OpenAI-compatible and expects the raw model name.
         """
         model = self.settings.llm_model or "llama3.1"
         backend = self.settings.llm_backend or "ollama"
 
         # If model already has a prefix (contains /), use as-is
         if "/" in model:
+            return model
+
+        # If using a custom endpoint (not official OpenAI API), don't add prefix
+        if self.settings.llm_endpoint:
             return model
 
         # Otherwise, prepend the backend as prefix
