@@ -61,7 +61,7 @@ from paperless_ai.indexing import vector_store_file_exists
 logger = logging.getLogger("paperless.views")
 
 
-def is_safe_url(url, allow_private=False):
+def is_safe_url(url, *, allow_private=False):
     """
     Basic SSRF protection: block local/private IP ranges.
     Handles IPv4, IPv6 and prevents DNS rebinding by returning (is_safe, resolved_ip).

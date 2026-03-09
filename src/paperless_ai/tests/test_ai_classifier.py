@@ -3,12 +3,24 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import override_settings
 
+from documents.models import Correspondent
 from documents.models import Document
+from documents.models import DocumentType
+from documents.models import Tag
+from paperless_ai.ai_classifier import CACHE_KEY_CORRESPONDENTS
+from paperless_ai.ai_classifier import CACHE_KEY_DOC_TYPES
+from paperless_ai.ai_classifier import CACHE_KEY_TAGS
+from paperless_ai.ai_classifier import EMPTY_MESSAGE
 from paperless_ai.ai_classifier import build_prompt_with_rag
 from paperless_ai.ai_classifier import build_prompt_without_rag
 from paperless_ai.ai_classifier import get_ai_document_classification
+from paperless_ai.ai_classifier import get_available_correspondents
+from paperless_ai.ai_classifier import get_available_document_types
+from paperless_ai.ai_classifier import get_available_tags
 from paperless_ai.ai_classifier import get_context_for_document
 
 
@@ -223,24 +235,6 @@ def test_get_context_for_document_no_similar_docs(mock_document):
 
 # Tests for cached helper functions and dynamic placeholders
 
-from unittest.mock import patch
-
-import pytest
-from django.contrib.auth.models import User
-from django.core.cache import cache
-from django.test import override_settings
-
-from documents.models import Correspondent
-from documents.models import DocumentType
-from documents.models import Tag
-from paperless_ai.ai_classifier import CACHE_KEY_CORRESPONDENTS
-from paperless_ai.ai_classifier import CACHE_KEY_DOC_TYPES
-from paperless_ai.ai_classifier import CACHE_KEY_TAGS
-from paperless_ai.ai_classifier import EMPTY_MESSAGE
-from paperless_ai.ai_classifier import get_available_correspondents
-from paperless_ai.ai_classifier import get_available_document_types
-from paperless_ai.ai_classifier import get_available_tags
-
 
 @pytest.mark.django_db
 def test_get_available_tags_cache_miss():
@@ -360,11 +354,11 @@ def test_helper_functions_with_user_permissions():
     cache.clear()
     user = User.objects.create_user(username="testuser")
 
-    # Create objects
-    tag1 = Tag.objects.create(name="Tag1")
-    tag2 = Tag.objects.create(name="Tag2")
-    doc_type = DocumentType.objects.create(name="Invoice")
-    correspondent = Correspondent.objects.create(name="John")
+    # Create objects (using _ prefix to indicate intentionally unused)
+    _tag1 = Tag.objects.create(name="Tag1")
+    _tag2 = Tag.objects.create(name="Tag2")
+    _doc_type = DocumentType.objects.create(name="Invoice")
+    _correspondent = Correspondent.objects.create(name="John")
 
     # Mock the permission function to return filtered results
     with patch(
