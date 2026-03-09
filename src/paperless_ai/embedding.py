@@ -49,6 +49,11 @@ class LiteLLMEmbedding(BaseEmbedding):
         self.timeout = timeout
 
     def _get_model_with_prefix(self) -> str:
+        """Get model name with appropriate prefix for LiteLLM."""
+        # If using custom API base (OpenAI-compatible endpoint), use model name as-is
+        if self.api_base:
+            return self.model_name
+        # Otherwise use ollama prefix for direct Ollama connections
         if "/" in self.model_name:
             return self.model_name
         return f"ollama/{self.model_name}"
