@@ -73,8 +73,12 @@ def get_default_file_extension(mime_type: str) -> str:
 
         supported_mime_types = parser_declaration["mime_types"]
 
-        if mime_type in supported_mime_types:
-            return supported_mime_types[mime_type]
+        if isinstance(supported_mime_types, dict):
+            if mime_type in supported_mime_types:
+                return supported_mime_types[mime_type]
+        elif mime_type in supported_mime_types:
+            # List format - fall back to mimetypes guessing
+            pass
 
     ext = mimetypes.guess_extension(mime_type)
     if ext:
@@ -104,12 +108,17 @@ def get_supported_file_extensions() -> set[str]:
 
         supported_mime_types = parser_declaration["mime_types"]
 
-        for mime_type in supported_mime_types:
-            extensions.update(mimetypes.guess_all_extensions(mime_type))
-            # Python's stdlib might be behind, so also add what the parser
-            # says is the default extension
-            # This makes image/webp supported on Python < 3.11
-            extensions.add(supported_mime_types[mime_type])
+        if isinstance(supported_mime_types, dict):
+            for mime_type in supported_mime_types:
+                extensions.update(mimetypes.guess_all_extensions(mime_type))
+                # Python's stdlib might be behind, so also add what the parser
+                # says is the default extension
+                # This makes image/webp supported on Python < 3.11
+                extensions.add(supported_mime_types[mime_type])
+        else:
+            # Handle list format (e.g., from docling)
+            for mime_type in supported_mime_types:
+                extensions.update(mimetypes.guess_all_extensions(mime_type))
 
     return extensions
 
