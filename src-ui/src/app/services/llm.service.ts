@@ -43,6 +43,11 @@ export class LLMService {
       map((response) => {
         if (Array.isArray(response)) {
           return response.map((m) => ({ id: m.id, name: m.name || m.id }))
+        } else if (response.data && Array.isArray(response.data)) {
+          return response.data.map((m: any) => ({
+            id: m.id,
+            name: m.name || m.id,
+          }))
         } else if (response.models) {
           return (response.models || []).map((m: any) => ({
             id: m.name,

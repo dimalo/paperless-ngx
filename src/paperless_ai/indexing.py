@@ -11,9 +11,10 @@ from llama_index.core import Document as LlamaDocument
 from llama_index.core import VectorStoreIndex
 from llama_index.core import load_index_from_storage
 from llama_index.core.node_parser import SimpleNodeParser
+from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.schema import BaseNode
 from llama_index.core.text_splitter import TokenTextSplitter
-from llama_index.core.vector_stores import FilterCondition
+from llama_index.core.vector_stores import FilterOperator
 from llama_index.core.vector_stores import MetadataFilter
 from llama_index.core.vector_stores import MetadataFilters
 from tqdm import tqdm
@@ -187,56 +188,76 @@ def get_existing_docs_map(index: VectorStoreIndex) -> dict[str, str]:
 
 def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
     """
-    Rebuild or update the LLM index.
+    Rebuild or update the LLM index with memory-efficient batching.
     """
     VectorStoreFactory.setup_vector_store()
 
-    documents = Document.objects.select_related(
-        "correspondent",
-        "document_type",
-        "storage_path",
-    ).prefetch_related(
-        "tags",
-        "notes",
-        "custom_fields",
-        "custom_fields__field",
+    # Use iterator() to keep memory usage low for the Document QuerySet
+    documents = (
+        Document.objects.select_related(
+            "correspondent",
+            "document_type",
+            "storage_path",
+        )
+        .prefetch_related(
+            "tags",
+            "notes",
+            "custom_fields",
+            "custom_fields__field",
+        )
+        .order_by("pk")
     )
-    if not documents.exists():
+
+    total_count = documents.count()
+    if total_count == 0:
         return "No documents found to index."
+
+    batch_size = 50  # Smaller batches to control memory and API rate limits
+    doc_iterator = documents.iterator()
 
     if rebuild or not vector_store_file_exists():
         if rebuild:
             (settings.LLM_INDEX_DIR / "meta.json").unlink(missing_ok=True)
 
-        logger.info("Rebuilding LLM index.")
+        logger.info("Rebuilding LLM index in batches.")
         embed_model = get_embedding_model()
         llama_settings.Settings.embed_model = embed_model
         storage_context = get_or_create_storage_context(rebuild=rebuild)
 
-        if VectorStoreFactory.get_vector_store_backend() == "faiss":
-            nodes = []
-            for document in tqdm(documents, disable=progress_bar_disable):
-                nodes.extend(build_document_node(document))
+        index = None
+        nodes = []
+        first_batch = True
 
-            index = VectorStoreIndex(
-                nodes=nodes,
-                storage_context=storage_context,
-                embed_model=embed_model,
-                show_progress=not progress_bar_disable,
-            )
-        else:
-            # Postgres / Vector Store
-            index = VectorStoreIndex.from_vector_store(
-                vector_store=storage_context.vector_store,
-                embed_model=embed_model,
-            )
-            # If rebuilding Postgres, we should ideally truncate but at least
-            # we can batch insert.
-            nodes = []
-            for document in tqdm(documents, disable=progress_bar_disable):
-                nodes.extend(build_document_node(document))
+        for document in tqdm(
+            doc_iterator,
+            total=total_count,
+            disable=progress_bar_disable,
+        ):
+            nodes.extend(build_document_node(document))
 
-            if nodes:
+            if len(nodes) >= batch_size:
+                if first_batch:
+                    # Initial batch creation
+                    index = VectorStoreIndex(
+                        nodes=nodes,
+                        storage_context=storage_context,
+                        embed_model=embed_model,
+                        show_progress=False,
+                    )
+                    first_batch = False
+                else:
+                    index.insert_nodes(nodes)
+                nodes = []
+
+        if nodes:
+            if first_batch:
+                index = VectorStoreIndex(
+                    nodes=nodes,
+                    storage_context=storage_context,
+                    embed_model=embed_model,
+                    show_progress=False,
+                )
+            else:
                 index.insert_nodes(nodes)
 
         msg = "LLM index rebuilt successfully."
@@ -245,7 +266,11 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
         existing_doc_map = get_existing_docs_map(index)
         nodes = []
 
-        for document in tqdm(documents, disable=progress_bar_disable):
+        for document in tqdm(
+            doc_iterator,
+            total=total_count,
+            disable=progress_bar_disable,
+        ):
             doc_id = str(document.pk)
             document_modified = document.modified.isoformat()
 
@@ -256,29 +281,64 @@ def update_llm_index(*, progress_bar_disable=False, rebuild=False) -> str:
 
             nodes.extend(build_document_node(document))
 
+            if len(nodes) >= batch_size:
+                index.insert_nodes(nodes)
+                nodes = []
+
         if nodes:
             index.insert_nodes(nodes)
-            msg = f"LLM index updated with {len(nodes)} nodes."
+            msg = f"LLM index updated with {len(nodes)} new/changed nodes."
         else:
             msg = "No changes detected in LLM index."
 
-    if VectorStoreFactory.get_vector_store_backend() == "faiss":
+    if VectorStoreFactory.get_vector_store_backend() == "faiss" and index:
         index.storage_context.persist(persist_dir=str(settings.LLM_INDEX_DIR))
     return msg
 
 
-def llm_index_add_or_update_document(document: Document):
-    new_nodes = build_document_node(document)
-    index = load_or_build_index(nodes=new_nodes)
-    remove_document_from_index(document, index)
-    index.insert_nodes(new_nodes)
-    if VectorStoreFactory.get_vector_store_backend() == "faiss":
-        index.storage_context.persist(persist_dir=str(settings.LLM_INDEX_DIR))
+def llm_index_add_or_update_document(document: Document) -> None:
+    """
+    Add or update a single document in the LLM index.
+    """
+    VectorStoreFactory.setup_vector_store()
+
+    if not vector_store_file_exists():
+        # If index doesn't exist, trigger a full rebuild
+        queue_llm_index_update_if_needed(
+            rebuild=False,
+            reason=f"Document {document.pk} added/updated but LLM index not found.",
+        )
+        return
+
+    index = load_or_build_index()
+    existing_doc_map = get_existing_docs_map(index)
+    doc_id = str(document.pk)
+
+    # If document exists, remove it first (it will be re-added)
+    if doc_id in existing_doc_map:
+        remove_document_from_index(document, index)
+
+    # Build and insert nodes for the document
+    nodes = build_document_node(document)
+    if nodes:
+        index.insert_nodes(nodes)
+
+        if VectorStoreFactory.get_vector_store_backend() == "faiss":
+            index.storage_context.persist(persist_dir=str(settings.LLM_INDEX_DIR))
 
 
-def llm_index_remove_document(document: Document):
+def llm_index_remove_document(document: Document) -> None:
+    """
+    Remove a single document from the LLM index.
+    """
+    VectorStoreFactory.setup_vector_store()
+
+    if not vector_store_file_exists():
+        return
+
     index = load_or_build_index()
     remove_document_from_index(document, index)
+
     if VectorStoreFactory.get_vector_store_backend() == "faiss":
         index.storage_context.persist(persist_dir=str(settings.LLM_INDEX_DIR))
 
@@ -309,20 +369,26 @@ def query_similar_documents(
     document_ids: list[int] | None = None,
 ) -> list[Document]:
     if not vector_store_file_exists():
+        queue_llm_index_update_if_needed(
+            rebuild=False,
+            reason="LLM index not found for similarity query.",
+        )
         return []
 
     index = load_or_build_index()
     filters = None
     if document_ids:
+        # Optimization: Use FilterOperator.IN instead of many OR conditions
+        # if the list is too large, we might still have issues, but this is much better.
         filters = MetadataFilters(
             filters=[
-                MetadataFilter(key="document_id", value=str(doc_id))
-                for doc_id in document_ids
+                MetadataFilter(
+                    key="document_id",
+                    value=[str(doc_id) for doc_id in document_ids],
+                    operator=FilterOperator.IN,
+                ),
             ],
-            condition=FilterCondition.OR,
         )
-
-    from llama_index.core.retrievers import VectorIndexRetriever
 
     retriever = VectorIndexRetriever(
         index=index,

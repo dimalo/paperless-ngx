@@ -1,14 +1,21 @@
 import logging
 
+from django.core.cache import cache
 from django.db.models.signals import post_delete
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 
+from documents.models import Correspondent
 from documents.models import Document
+from documents.models import DocumentType
+from documents.models import Tag
 from documents.tasks import llmindex_index
 from paperless.config import AIConfig
 from paperless.models import ApplicationConfiguration
+from paperless_ai.ai_classifier import CACHE_KEY_CORRESPONDENTS
+from paperless_ai.ai_classifier import CACHE_KEY_DOC_TYPES
+from paperless_ai.ai_classifier import CACHE_KEY_TAGS
 from paperless_ai.indexing import llm_index_add_or_update_document
 from paperless_ai.indexing import llm_index_remove_document
 
@@ -103,3 +110,24 @@ def handle_app_config_save(sender, instance, created, **kwargs):
         llmindex_index.delay(rebuild=True, scheduled=False)
     else:
         logger.debug("No AI/Vector store settings changed, skipping index rebuild.")
+
+
+# Cache invalidation for AI classifier available values
+
+
+@receiver([post_save, post_delete], sender=Tag)
+def invalidate_tags_cache(sender, instance, **kwargs):
+    """Invalidate the tags cache when tags are created, updated, or deleted."""
+    cache.delete(f"{CACHE_KEY_TAGS}:global")
+
+
+@receiver([post_save, post_delete], sender=DocumentType)
+def invalidate_document_types_cache(sender, instance, **kwargs):
+    """Invalidate the document types cache when document types are created, updated, or deleted."""
+    cache.delete(f"{CACHE_KEY_DOC_TYPES}:global")
+
+
+@receiver([post_save, post_delete], sender=Correspondent)
+def invalidate_correspondents_cache(sender, instance, **kwargs):
+    """Invalidate the correspondents cache when correspondents are created, updated, or deleted."""
+    cache.delete(f"{CACHE_KEY_CORRESPONDENTS}:global")

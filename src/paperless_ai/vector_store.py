@@ -22,6 +22,15 @@ class VectorStoreFactory:
     _storage_context_cache: StorageContext | None = None
 
     @staticmethod
+    def clear_cache():
+        """
+        Clears the cached backend and storage context.
+        Mostly useful for tests.
+        """
+        VectorStoreFactory._backend_cache = None
+        VectorStoreFactory._storage_context_cache = None
+
+    @staticmethod
     def get_vector_store_backend() -> str:
         """
         Determines which vector store backend to use.

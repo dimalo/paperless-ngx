@@ -15,6 +15,7 @@ from allauth.mfa.recovery_codes.internal.flows import auto_generate_recovery_cod
 from allauth.mfa.totp.internal import auth as totp_auth
 from allauth.socialaccount.adapter import get_adapter
 from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.contrib.auth.models import Group
 from django.contrib.auth.models import User
 from django.contrib.staticfiles.storage import staticfiles_storage
@@ -60,7 +61,7 @@ from paperless_ai.indexing import vector_store_file_exists
 logger = logging.getLogger("paperless.views")
 
 
-def is_safe_url(url):
+def is_safe_url(url, allow_private=False):
     """
     Basic SSRF protection: block local/private IP ranges.
     Handles IPv4, IPv6 and prevents DNS rebinding by returning (is_safe, resolved_ip).
@@ -88,15 +89,16 @@ def is_safe_url(url):
         if not ips:
             return False, None
 
-        for ip in ips:
-            if (
-                ip.is_loopback
-                or ip.is_private
-                or ip.is_link_local
-                or ip.is_multicast
-                or ip.is_unspecified
-            ):
-                return False, None
+        if not allow_private:
+            for ip in ips:
+                if (
+                    ip.is_loopback
+                    or ip.is_private
+                    or ip.is_link_local
+                    or ip.is_multicast
+                    or ip.is_unspecified
+                ):
+                    return False, None
 
         # Return True and the first resolved IP to pin it
         return True, str(ips[0])
@@ -121,23 +123,19 @@ class LLMProxyView(GenericAPIView):
         # If not passed, check configured backend
         if not endpoint:
             from paperless.config import AIConfig
-            from paperless.config import OllamaConfig
 
             # Ideally we check which backend is being tested
             backend = request.data.get("backend") or request.query_params.get("backend")
 
-            # Check general AI configuration first if backend matches
+            # Check general AI configuration first
             ai_config = AIConfig()
             if backend == ai_config.llm_backend and ai_config.llm_endpoint:
                 endpoint = ai_config.llm_endpoint
-
-            # Fallback to specific OCR config if still not found
-            if not endpoint:
-                if backend == "ollama":
-                    config = OllamaConfig()
-                    endpoint = config.endpoint
-                elif ai_config.llm_backend == backend:
-                    endpoint = ai_config.llm_endpoint
+            elif backend == "ollama":
+                # Fallback to configured llm_endpoint if backend is ollama
+                endpoint = ai_config.llm_endpoint
+            elif ai_config.llm_backend == backend:
+                endpoint = ai_config.llm_endpoint
 
         return endpoint
 
@@ -154,7 +152,11 @@ class LLMProxyView(GenericAPIView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
 
-        safe, resolved_ip = is_safe_url(endpoint) if endpoint else (True, None)
+        safe, resolved_ip = (
+            is_safe_url(endpoint, allow_private=settings.AI_ALLOW_PRIVATE_ENDPOINTS)
+            if endpoint
+            else (True, None)
+        )
         if endpoint and not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
@@ -169,7 +171,27 @@ class LLMProxyView(GenericAPIView):
 
         backend = request.query_params.get("backend")
 
-        if backend == "openai" or not endpoint:
+        if backend == "openai":
+            if endpoint:
+                # Attempt model discovery for OpenAI-compatible endpoints
+                for discovery_path in ["/v1/models", "/models"]:
+                    try:
+                        url = f"{endpoint}{discovery_path}"
+                        response = requests.get(url, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            if "data" in data and isinstance(data["data"], list):
+                                return Response(
+                                    [
+                                        {"id": model["id"], "name": model["id"]}
+                                        for model in data["data"]
+                                        if "id" in model
+                                    ],
+                                )
+                    except Exception as e:
+                        logger.debug(f"Discovery failed at {discovery_path}: {e}")
+
+            # Fallback for OpenAI or if discovery fails
             return Response(
                 [
                     {"id": "gpt-4o", "name": "gpt-4o"},
@@ -178,6 +200,9 @@ class LLMProxyView(GenericAPIView):
                     {"id": "gpt-3.5-turbo", "name": "gpt-3.5-turbo"},
                 ],
             )
+
+        if not endpoint:
+            return Response([])
 
         if backend == "ollama" and endpoint:
             try:
@@ -201,7 +226,11 @@ class LLMProxyView(GenericAPIView):
         endpoint = self._get_endpoint(request)
         endpoint = self._normalize_endpoint(endpoint)
 
-        safe, resolved_ip = is_safe_url(endpoint) if endpoint else (True, None)
+        safe, resolved_ip = (
+            is_safe_url(endpoint, allow_private=settings.AI_ALLOW_PRIVATE_ENDPOINTS)
+            if endpoint
+            else (True, None)
+        )
         if endpoint and not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
@@ -275,7 +304,10 @@ class OllamaProxyView(LLMProxyView):
         if not endpoint:
             return HttpResponseBadRequest(b"Ollama endpoint not configured")
 
-        safe, resolved_ip = is_safe_url(endpoint)
+        safe, resolved_ip = is_safe_url(
+            endpoint,
+            allow_private=settings.AI_ALLOW_PRIVATE_ENDPOINTS,
+        )
         if not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
@@ -312,7 +344,10 @@ class OllamaProxyView(LLMProxyView):
         if not endpoint:
             return HttpResponseBadRequest(b"Ollama endpoint not configured")
 
-        safe, resolved_ip = is_safe_url(endpoint)
+        safe, resolved_ip = is_safe_url(
+            endpoint,
+            allow_private=settings.AI_ALLOW_PRIVATE_ENDPOINTS,
+        )
         if not safe:
             return Response(
                 {"error": "Forbidden endpoint (SSRF protection)"},
@@ -337,50 +372,6 @@ class OllamaProxyView(LLMProxyView):
             data.pop("backend", None)
             response = requests.post(url, json=data, timeout=120)
             return Response(response.json(), status=response.status_code)
-        except requests.RequestException as e:
-            return Response({"error": str(e)}, status=400)
-
-
-class DoclingProxyView(GenericAPIView):
-    permission_classes = [IsAdminUser]
-
-    def get(self, request, *args, **kwargs):
-        endpoint = request.query_params.get("endpoint")
-        if not endpoint:
-            return HttpResponseBadRequest(b"Missing endpoint parameter")
-
-        if not endpoint.startswith("http"):
-            endpoint = f"http://{endpoint}"
-        endpoint = endpoint.rstrip("/")
-
-        safe, resolved_ip = is_safe_url(endpoint)
-        if not safe:
-            return Response(
-                {"error": "Forbidden endpoint (SSRF protection)"},
-                status=403,
-            )
-
-        # Pin endpoint to resolved IP to prevent DNS rebinding
-        if resolved_ip:
-            parsed = urlparse(endpoint)
-            port_str = f":{parsed.port}" if parsed.port else ""
-            endpoint = f"{parsed.scheme}://{resolved_ip}{port_str}"
-
-        try:
-            try:
-                response = requests.get(f"{endpoint}/v1/health", timeout=5)
-                response.raise_for_status()
-                return Response(
-                    {"status": "ok", "detail": "Connected to Docling Health Endpoint"},
-                )
-            except requests.RequestException:
-                response = requests.get(endpoint, timeout=5)
-                return Response(
-                    {
-                        "status": "ok",
-                        "detail": f"Connected (Status {response.status_code})",
-                    },
-                )
         except requests.RequestException as e:
             return Response({"error": str(e)}, status=400)
 

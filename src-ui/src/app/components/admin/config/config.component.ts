@@ -17,11 +17,9 @@ import {
   Subscription,
   combineLatest,
   first,
-  merge,
-  of,
   takeUntil,
 } from 'rxjs'
-import { catchError, debounceTime, switchMap } from 'rxjs/operators'
+import { debounceTime } from 'rxjs/operators'
 import {
   ConfigCategory,
   ConfigOption,
@@ -87,7 +85,6 @@ export class ConfigComponent
 
   public testInProgress = {
     llm_api_key: false,
-    ollama_endpoint: false,
     docling_endpoint: false,
   }
 
@@ -187,42 +184,6 @@ export class ConfigComponent
           apiKey || mainApiKey
         )
       })
-
-    // Interactive Ollama Model Fetching for OCR
-    merge(
-      this.configForm.get('ollama_endpoint')?.valueChanges,
-      this.configForm.get('ocr_engine')?.valueChanges
-    )
-      .pipe(
-        takeUntil(this.unsubscribeNotifier),
-        debounceTime(500),
-        switchMap((): Observable<{ id: string; name: string }[]> => {
-          const engine = this.configForm.get('ocr_engine')?.value
-          const endpoint = this.configForm.get('ollama_endpoint')?.value
-          if (engine === 'ollama' && endpoint) {
-            return this.ollamaService.getModels(endpoint).pipe(
-              catchError((err) => {
-                this.toastService.showError(
-                  $localize`Failed to fetch OCR models`,
-                  err
-                )
-                return of([])
-              })
-            )
-          }
-          return of([])
-        })
-      )
-      .subscribe({
-        next: (models: { id: string; name: string }[]) => {
-          const modelOption = PaperlessConfigOptions.find(
-            (o) => o.key === 'ollama_model'
-          )
-          if (modelOption) {
-            modelOption.choices = models
-          }
-        },
-      })
   }
 
   private fetchLLMModels(backend: string, endpoint: string, apiKey: string) {
@@ -287,8 +248,6 @@ export class ConfigComponent
         api_key: val.llm_api_key,
         model: val.llm_model,
       })
-    } else if (key === 'ollama_endpoint') {
-      obs = this.ollamaService.getModels(val.ollama_endpoint)
     } else if (key === 'docling_endpoint') {
       obs = this.http.get(
         `/api/docling_proxy/?endpoint=${val.docling_endpoint}`
@@ -332,18 +291,6 @@ export class ConfigComponent
 
     // Trigger initial model fetches
     this.refreshModels()
-    const ocrEndpoint = this.configForm.get('ollama_endpoint')?.value
-    if (ocrEndpoint && this.configForm.get('ocr_engine')?.value === 'ollama') {
-      this.ollamaService
-        .getModels(ocrEndpoint)
-        .pipe(first())
-        .subscribe((models) => {
-          const modelOption = PaperlessConfigOptions.find(
-            (o) => o.key === 'ollama_model'
-          )
-          if (modelOption) modelOption.choices = models
-        })
-    }
   }
 
   getDocsUrl(key: string) {

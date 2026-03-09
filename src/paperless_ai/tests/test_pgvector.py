@@ -8,6 +8,9 @@ from paperless_ai.vector_store import VectorStoreFactory
 
 @pytest.mark.django_db
 class TestVectorStoreFactory:
+    def setup_method(self):
+        VectorStoreFactory.clear_cache()
+
     @patch("paperless_ai.vector_store.AIConfig")
     def test_get_vector_store_backend_explicit_faiss(self, mock_config):
         mock_config.return_value.vector_store_backend = "faiss"

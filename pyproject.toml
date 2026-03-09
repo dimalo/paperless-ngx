@@ -56,6 +56,8 @@ dependencies = [
   "llama-index-core>=0.14.12",
   "llama-index-embeddings-huggingface>=0.6.1",
   "llama-index-embeddings-openai>=0.3",
+  "llama-index-llms-ollama>=0.5",
+  "llama-index-llms-openai>=0.3",
   "llama-index-vector-stores-faiss>=0.5.2",
 
   "nltk~=3.9.1",
@@ -325,6 +327,7 @@ markers = [
   "tika: Tests requiring Tika service",
   "greenmail: Tests requiring Greenmail service",
   "date_parsing: Tests which cover date parsing from content or filename",
+  "asyncio: asyncio tests",
 ]
 
 [tool.pytest_env]

@@ -109,10 +109,17 @@ export const PaperlessConfigOptions: ConfigOption[] = [
       { id: 'tesseract', name: 'Tesseract' },
       { id: 'docling', name: 'Docling (Local)' },
       { id: 'docling_server', name: 'Docling Server' },
-      { id: 'ollama', name: 'Ollama' },
     ],
     config_key: 'PAPERLESS_OCR_ENGINE',
     category: ConfigCategory.OCR,
+  },
+  {
+    key: 'ocr_engine_priority',
+    title: $localize`OCR Engine Priority`,
+    type: ConfigOptionType.String,
+    config_key: 'PAPERLESS_OCR_ENGINE_PRIORITY',
+    category: ConfigCategory.OCR,
+    note: $localize`Comma-separated list of OCR engines in priority order. Example: "tesseract,docling,docling_server"`,
   },
   {
     key: 'ocr_image_enhancement_header',
@@ -196,48 +203,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     config_key: 'PAPERLESS_DOCLING_FORCE_OCR',
     category: ConfigCategory.OCR,
   },
-  {
-    key: 'ollama_header',
-    title: $localize`Ollama Settings`,
-    type: ConfigOptionType.Header,
-    category: ConfigCategory.OCR,
-  },
-  {
-    key: 'ollama_endpoint',
-    title: $localize`Ollama Endpoint`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_OLLAMA_ENDPOINT',
-    category: ConfigCategory.OCR,
-  },
-  {
-    key: 'ollama_model',
-    title: $localize`Ollama Model`,
-    type: ConfigOptionType.Select,
-    choices: [],
-    config_key: 'PAPERLESS_OLLAMA_MODEL',
-    category: ConfigCategory.OCR,
-  },
-  {
-    key: 'ollama_timeout',
-    title: $localize`Ollama Timeout`,
-    type: ConfigOptionType.Number,
-    config_key: 'PAPERLESS_OLLAMA_TIMEOUT',
-    category: ConfigCategory.OCR,
-  },
-  {
-    key: 'ollama_prompt_template',
-    title: $localize`Ollama Prompt Template`,
-    type: ConfigOptionType.String,
-    config_key: 'PAPERLESS_OLLAMA_PROMPT_TEMPLATE',
-    category: ConfigCategory.OCR,
-  },
-  {
-    key: 'ollama_ocr_debug_thumbnail',
-    title: $localize`Debug Thumbnails`,
-    type: ConfigOptionType.Boolean,
-    config_key: 'PAPERLESS_OLLAMA_OCR_DEBUG_THUMBNAIL',
-    category: ConfigCategory.OCR,
-  },
+
   {
     key: 'tesseract_header',
     title: $localize`Tesseract Settings`,
@@ -451,7 +417,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     title: $localize`LLM Backend`,
     type: ConfigOptionType.Select,
     choices: [
-      { id: 'openai', name: 'OpenAI' },
+      { id: 'openai', name: 'OpenAI-Compatible' },
       { id: 'ollama', name: 'Ollama' },
     ],
     config_key: 'PAPERLESS_AI_LLM_BACKEND',
@@ -493,6 +459,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     type: ConfigOptionType.Textarea,
     config_key: 'PAPERLESS_AI_SYSTEM_PROMPT',
     category: ConfigCategory.AI,
+    note: $localize`Available placeholders: {filename}, {content}, {available_tags}, {available_document_types}, {available_correspondents}`,
   },
   // Embedding Configuration
   {
@@ -506,7 +473,7 @@ export const PaperlessConfigOptions: ConfigOption[] = [
     title: $localize`Embedding Backend`,
     type: ConfigOptionType.Select,
     choices: [
-      { id: 'openai', name: 'OpenAI' },
+      { id: 'openai', name: 'OpenAI-Compatible' },
       { id: 'huggingface', name: 'HuggingFace' },
       { id: 'ollama', name: 'Ollama' },
     ],
@@ -689,11 +656,7 @@ export interface PaperlessConfig extends ObjectWithId {
   docling_language: string
   docling_timeout: number
   docling_force_ocr: boolean
-  ollama_endpoint: string
-  ollama_model: string
-  ollama_timeout: number
-  ollama_prompt_template: string
-  ollama_ocr_debug_thumbnail: boolean
+  ocr_engine_priority: string
   pages: number
   language: string
   mode: ModeConfig

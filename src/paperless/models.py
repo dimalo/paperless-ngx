@@ -76,7 +76,7 @@ class ColorConvertChoices(models.TextChoices):
 
 
 class LLMEmbeddingBackend(models.TextChoices):
-    OPENAI = ("openai", _("OpenAI"))
+    OPENAI = ("openai", _("OpenAI-Compatible"))
     HUGGINGFACE = ("huggingface", _("Huggingface"))
     OLLAMA = ("ollama", _("Ollama"))
 
@@ -86,7 +86,7 @@ class LLMBackend(models.TextChoices):
     Matches to --llm-backend
     """
 
-    OPENAI = ("openai", _("OpenAI"))
+    OPENAI = ("openai", _("OpenAI-Compatible"))
     OLLAMA = ("ollama", _("Ollama"))
 
 
@@ -284,7 +284,7 @@ class ApplicationConfiguration(AbstractSingletonModel):
     # PAPERLESS_CONSUMER_TAG_BARCODE_SPLIT
     barcode_tag_split = models.BooleanField(
         verbose_name=_("Enables splitting on tag barcodes"),
-        null=True,
+        default=False,
     )
 
     # AI related settings
@@ -415,40 +415,17 @@ class ApplicationConfiguration(AbstractSingletonModel):
             ("tesseract", _("Tesseract")),
             ("docling", _("Docling (Local)")),
             ("docling_server", _("Docling Server")),
-            ("ollama", _("Ollama")),
         ],
         default="tesseract",
     )
 
-    ollama_endpoint = models.CharField(
-        verbose_name=_("Ollama endpoint"),
+    ocr_engine_priority = models.TextField(
+        verbose_name=_("OCR engine priority"),
         null=True,
         blank=True,
-        max_length=256,
-    )
-
-    ollama_model = models.CharField(
-        verbose_name=_("Ollama model"),
-        null=True,
-        blank=True,
-        max_length=128,
-    )
-
-    ollama_prompt_template = models.TextField(
-        verbose_name=_("Ollama prompt template"),
-        null=True,
-        blank=True,
-    )
-
-    ollama_timeout = models.PositiveIntegerField(
-        verbose_name=_("Ollama timeout"),
-        null=True,
-        validators=[MinValueValidator(1)],
-    )
-
-    ollama_ocr_debug_thumbnail = models.BooleanField(
-        verbose_name=_("Ollama OCR debug thumbnail"),
-        null=True,
+        help_text=_(
+            "Comma-separated list of OCR engines in priority order (e.g., 'tesseract,docling,docling_server')",
+        ),
     )
 
     ai_system_prompt = models.TextField(
@@ -585,3 +562,22 @@ class ApplicationConfiguration(AbstractSingletonModel):
 
     def __str__(self) -> str:  # pragma: no cover
         return "ApplicationConfiguration"
+
+    def clean(self):
+        super().clean()
+        if self.ocr_engine_priority:
+            valid_engines = {"tesseract", "docling", "docling_server"}
+            engines = [
+                e.strip() for e in self.ocr_engine_priority.split(",") if e.strip()
+            ]
+            for engine in engines:
+                if engine not in valid_engines:
+                    from django.core.exceptions import ValidationError
+
+                    raise ValidationError(
+                        {
+                            "ocr_engine_priority": _(
+                                f"Invalid OCR engine: {engine}. Valid options are: {', '.join(sorted(valid_engines))}",
+                            ),
+                        },
+                    )

@@ -74,6 +74,7 @@ class OcrConfig(OutputTypeConfig):
     sharpen_percent: float = dataclasses.field(init=False)
     sharpen_threshold: float = dataclasses.field(init=False)
     alignment_threshold: float = dataclasses.field(init=False)
+    ocr_engine_priority: str = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -138,6 +139,9 @@ class OcrConfig(OutputTypeConfig):
         )
         self.alignment_threshold = (
             app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
+        )
+        self.ocr_engine_priority = (
+            app_config.ocr_engine_priority or settings.OCR_ENGINE_PRIORITY
         )
 
 
@@ -298,14 +302,6 @@ class AIConfig(BaseConfig):
             "LLM_ENDPOINT",
             None,
         )
-
-        # Fallback to OLLAMA_ENDPOINT if using ollama backend and no endpoint specified
-        if self.llm_backend == "ollama" and not self.llm_endpoint:
-            self.llm_endpoint = getattr(app_config, "ollama_endpoint", None) or getattr(
-                settings,
-                "OLLAMA_ENDPOINT",
-                None,
-            )
 
         # Normalize endpoints
         self.llm_endpoint = self._normalize_endpoint(self.llm_endpoint)
@@ -532,69 +528,6 @@ class DoclingConfig(BaseConfig):
             app_config.docling_endpoint or settings.DOCLING_ENDPOINT,
         )
         self.timeout = app_config.docling_timeout or settings.DOCLING_TIMEOUT
-        self.sharpen = (
-            app_config.ocr_sharpen
-            if app_config.ocr_sharpen is not None
-            else settings.OCR_SHARPEN
-        )
-        self.custom_alignment = (
-            app_config.ocr_custom_alignment
-            if app_config.ocr_custom_alignment is not None
-            else settings.OCR_CUSTOM_ALIGNMENT
-        )
-        self.sharpen_radius = (
-            app_config.ocr_sharpen_radius or settings.OCR_SHARPEN_RADIUS
-        )
-        self.sharpen_percent = (
-            app_config.ocr_sharpen_percent or settings.OCR_SHARPEN_PERCENT
-        )
-        self.sharpen_threshold = (
-            app_config.ocr_sharpen_threshold or settings.OCR_SHARPEN_THRESHOLD
-        )
-        self.alignment_threshold = (
-            app_config.ocr_alignment_threshold or settings.OCR_ALIGNMENT_THRESHOLD
-        )
-
-
-@dataclasses.dataclass
-class OllamaConfig(BaseConfig):
-    """
-    Specific settings for the Ollama OCR parser
-    """
-
-    endpoint: str | None = dataclasses.field(init=False)
-    model: str = dataclasses.field(init=False)
-    prompt_template: str = dataclasses.field(init=False)
-    timeout: int = dataclasses.field(init=False)
-    sharpen: bool = dataclasses.field(init=False)
-    custom_alignment: bool = dataclasses.field(init=False)
-    sharpen_radius: float = dataclasses.field(init=False)
-    sharpen_percent: float = dataclasses.field(init=False)
-    sharpen_threshold: float = dataclasses.field(init=False)
-    alignment_threshold: float = dataclasses.field(init=False)
-    ollama_ocr_debug_thumbnail: bool | None = dataclasses.field(init=False)
-
-    def __post_init__(self) -> None:
-        app_config = self._get_config_instance()
-
-        self.endpoint = self._normalize_endpoint(
-            app_config.ollama_endpoint or settings.OLLAMA_ENDPOINT,
-        )
-        if self.endpoint:
-            import os
-
-            os.environ["OLLAMA_API_BASE"] = self.endpoint
-
-        self.model = app_config.ollama_model or settings.OLLAMA_MODEL
-        self.prompt_template = (
-            app_config.ollama_prompt_template or settings.OLLAMA_PROMPT_TEMPLATE
-        )
-        self.timeout = app_config.ollama_timeout or settings.OLLAMA_TIMEOUT
-        self.ollama_ocr_debug_thumbnail = (
-            getattr(app_config, "ollama_ocr_debug_thumbnail", None)
-            if hasattr(app_config, "ollama_ocr_debug_thumbnail")
-            else settings.OLLAMA_OCR_DEBUG_THUMBNAIL
-        )
         self.sharpen = (
             app_config.ocr_sharpen
             if app_config.ocr_sharpen is not None

@@ -226,23 +226,7 @@ def ocr_dependencies_check(app_configs, **kwargs):
 
     msgs = []
     timeout = 2 if settings.DEBUG else 5
-    if settings.OCR_ENGINE == "ollama":
-        try:
-            import httpx
-
-            response = httpx.get(
-                f"{settings.OLLAMA_ENDPOINT}/api/version",
-                timeout=timeout,
-            )
-            if response.status_code != 200:
-                msgs.append(
-                    Warning("Ollama server is not responding properly"),
-                )
-        except Exception as e:
-            msgs.append(
-                Warning(f"Cannot connect to Ollama server: {e}"),
-            )
-    elif settings.OCR_ENGINE == "docling":
+    if settings.OCR_ENGINE == "docling":
         import importlib.util
 
         if importlib.util.find_spec("docling") is None:

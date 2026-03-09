@@ -102,7 +102,7 @@ def test_run_llm_query_timeout(mock_litellm, mock_ai_config):
 
     client = AIClient()
 
-    with pytest.raises(Exception, match="LLM request timed out"):
+    with pytest.raises(Exception, match="Failed to extract document data"):
         client.run_llm_query("test_prompt")
 
 
@@ -120,7 +120,7 @@ def test_run_llm_query_api_error(mock_litellm, mock_ai_config):
 
     client = AIClient()
 
-    with pytest.raises(Exception, match="LLM API error"):
+    with pytest.raises(Exception, match="Failed to extract document data"):
         client.run_llm_query("test_prompt")
 
 

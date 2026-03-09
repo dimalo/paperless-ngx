@@ -116,7 +116,16 @@ def test_get_embedding_model_ollama(mock_ai_config):
 
 @patch("paperless_ai.embedding.litellm")
 def test_litellm_embedding_methods(mock_litellm):
+    from litellm.exceptions import APIConnectionError
+    from litellm.exceptions import APIError
+    from litellm.exceptions import Timeout
+
     from paperless_ai.embedding import LiteLLMEmbedding
+
+    # Ensure exceptions are real classes for catch blocks
+    mock_litellm.Timeout = Timeout
+    mock_litellm.APIError = APIError
+    mock_litellm.APIConnectionError = APIConnectionError
 
     embedding = LiteLLMEmbedding(
         model_name="test-model",
@@ -135,6 +144,7 @@ def test_litellm_embedding_methods(mock_litellm):
     mock_response = MagicMock()
     mock_response.data = [{"embedding": [0.1, 0.2, 0.3]}]
     mock_litellm.embedding.return_value = mock_response
+    mock_litellm.aembedding = AsyncMock(return_value=mock_response)
 
     # Test _get_text_embedding
     res = embedding._get_text_embedding("hello")
@@ -158,7 +168,7 @@ def test_litellm_embedding_methods(mock_litellm):
     ]
     res_list = embedding._get_text_embeddings(["a", "b"])
     assert res_list == [[0.1, 0.1], [0.2, 0.2]]
-    mock_litellm.embedding.assert_called_with(
+    mock_litellm.aembedding.assert_called_with(
         model="ollama/test-model",
         input=["a", "b"],
         api_base="http://test.local",
@@ -171,7 +181,16 @@ def test_litellm_embedding_methods(mock_litellm):
 def test_litellm_embedding_async_methods(mock_litellm):
     import asyncio
 
+    from litellm.exceptions import APIConnectionError
+    from litellm.exceptions import APIError
+    from litellm.exceptions import Timeout
+
     from paperless_ai.embedding import LiteLLMEmbedding
+
+    # Ensure exceptions are real classes for catch blocks
+    mock_litellm.Timeout = Timeout
+    mock_litellm.APIError = APIError
+    mock_litellm.APIConnectionError = APIConnectionError
 
     embedding = LiteLLMEmbedding(
         model_name="test-model",
@@ -259,20 +278,19 @@ def test_get_embedding_dim_raises_on_model_change(temp_llm_index_dir, mock_ai_co
 
 
 def test_build_llm_index_text(mock_document):
-    with patch("documents.models.Note.objects.filter") as mock_notes_filter:
-        mock_notes_filter.return_value = [
-            MagicMock(note="Note1"),
-            MagicMock(note="Note2"),
-        ]
+    mock_document.notes.all.return_value = [
+        MagicMock(note="Note1"),
+        MagicMock(note="Note2"),
+    ]
 
-        result = build_llm_index_text(mock_document)
+    result = build_llm_index_text(mock_document)
 
-        assert "Title: Test Title" in result
-        assert "Filename: test_file.pdf" in result
-        assert "Created: 2023-01-01" in result
-        assert "Tags: Tag1, Tag2" in result
-        assert "Document Type: Invoice" in result
-        assert "Correspondent: Test Correspondent" in result
-        assert "Notes: Note1,Note2" in result
-        assert "Content:\n\nThis is the document content." in result
-        assert "Custom Field - Field1: Value1\nCustom Field - Field2: Value2" in result
+    assert "Title: Test Title" in result
+    assert "Filename: test_file.pdf" in result
+    assert "Created: 2023-01-01" in result
+    assert "Tags: Tag1, Tag2" in result
+    assert "Document Type: Invoice" in result
+    assert "Correspondent: Test Correspondent" in result
+    assert "Notes: Note1,Note2" in result
+    assert "Content:\n\nThis is the document content." in result
+    assert "Custom Field - Field1: Value1\nCustom Field - Field2: Value2" in result

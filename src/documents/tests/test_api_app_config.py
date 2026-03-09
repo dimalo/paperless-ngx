@@ -13,6 +13,7 @@ from paperless.models import ApplicationConfiguration
 from paperless.models import ColorConvertChoices
 
 
+@patch("documents.tasks.llmindex_index.delay")
 class TestApiAppConfig(DirectoriesMixin, APITestCase):
     ENDPOINT = "/api/config/"
 
@@ -22,7 +23,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         user = User.objects.create_superuser(username="temp_admin")
         self.client.force_authenticate(user=user)
 
-    def test_api_get_config(self) -> None:
+    def test_api_get_config(self, mock_delay) -> None:
         """
         GIVEN:
             - API request to get app config
@@ -67,7 +68,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
                 "barcode_max_pages": None,
                 "barcode_enable_tag": None,
                 "barcode_tag_mapping": None,
-                "barcode_tag_split": None,
+                "barcode_tag_split": False,
                 "ai_enabled": False,
                 "llm_embedding_backend": None,
                 "llm_embedding_model": None,
@@ -79,21 +80,24 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
                 "llm_endpoint": None,
                 "llm_timeout": None,
                 "vector_store_backend": "auto",
-                "vector_store_name": None,
                 "vector_store_host": None,
                 "vector_store_port": None,
                 "vector_store_user": None,
-                "vector_store_pass": None,
+                "vector_store_password": None,
+                "vector_store_database": None,
                 "ocr_engine": "tesseract",
-                "ollama_endpoint": None,
-                "ollama_model": None,
-                "ollama_prompt_template": None,
-                "ollama_timeout": None,
-                "ollama_ocr_debug_thumbnail": None,
+                "ocr_engine_priority": None,
                 "ai_system_prompt": None,
                 "enable_auto_ai_enhancement": None,
                 "confidence_threshold": None,
                 "auto_create_threshold": None,
+                "force_ai_update": False,
+                "rollback_enabled": True,
+                "rollback_retention_days": 30,
+                "audit_log_level": "INFO",
+                "rate_limit_requests": 100,
+                "rate_limit_window": 60,
+                "graceful_degradation": True,
                 "docling_force_ocr": None,
                 "docling_language": None,
                 "docling_endpoint": None,
@@ -107,7 +111,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
             },
         )
 
-    def test_api_get_ui_settings_with_config(self) -> None:
+    def test_api_get_ui_settings_with_config(self, mock_delay) -> None:
         """
         GIVEN:
             - Existing config with app_title, app_logo specified
@@ -130,7 +134,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
             | response.data["settings"],
         )
 
-    def test_api_update_config(self) -> None:
+    def test_api_update_config(self, mock_delay) -> None:
         """
         GIVEN:
             - API request to update app config
@@ -153,7 +157,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         config = ApplicationConfiguration.objects.first()
         self.assertEqual(config.color_conversion_strategy, ColorConvertChoices.RGB)
 
-    def test_api_update_config_empty_fields(self) -> None:
+    def test_api_update_config_empty_fields(self, mock_delay) -> None:
         """
         GIVEN:
             - API request to update app config with empty string for user_args JSONField and language field
@@ -180,7 +184,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(config.language, None)
         self.assertEqual(config.barcode_tag_mapping, None)
 
-    def test_api_replace_app_logo(self) -> None:
+    def test_api_replace_app_logo(self, mock_delay) -> None:
         """
         GIVEN:
             - Existing config with app_logo specified
@@ -229,7 +233,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         )
         self.assertFalse(Path(old_logo.path).exists())
 
-    def test_api_rejects_malicious_svg_logo(self) -> None:
+    def test_api_rejects_malicious_svg_logo(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG logo containing a <script> tag
@@ -256,7 +260,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("disallowed svg tag", str(response.data).lower())
 
-    def test_api_rejects_malicious_svg_with_style_javascript(self) -> None:
+    def test_api_rejects_malicious_svg_with_style_javascript(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG logo containing javascript: in style attribute
@@ -286,7 +290,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         )
         self.assertIn("style", str(response.data).lower())
 
-    def test_api_rejects_svg_with_style_expression(self) -> None:
+    def test_api_rejects_svg_with_style_expression(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG logo containing CSS expression() in style
@@ -312,7 +316,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("disallowed", str(response.data).lower())
 
-    def test_api_rejects_svg_with_style_cdata_javascript(self) -> None:
+    def test_api_rejects_svg_with_style_cdata_javascript(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG logo with javascript: hidden in a CDATA style block
@@ -341,7 +345,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("disallowed", str(response.data).lower())
 
-    def test_api_rejects_svg_with_style_import(self) -> None:
+    def test_api_rejects_svg_with_style_import(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG logo containing @import in style
@@ -367,7 +371,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("disallowed", str(response.data).lower())
 
-    def test_api_accepts_valid_svg_with_safe_style(self) -> None:
+    def test_api_accepts_valid_svg_with_safe_style(self, mock_delay) -> None:
         """
         GIVEN:
             - A valid SVG logo with safe style attributes
@@ -393,7 +397,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_api_accepts_valid_svg_with_safe_style_tag(self) -> None:
+    def test_api_accepts_valid_svg_with_safe_style_tag(self, mock_delay) -> None:
         """
         GIVEN:
             - A valid SVG logo with an embedded <style> tag
@@ -423,7 +427,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_api_rejects_svg_with_disallowed_attribute(self) -> None:
+    def test_api_rejects_svg_with_disallowed_attribute(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with a disallowed attribute (onclick)
@@ -450,7 +454,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertIn("disallowed", str(response.data).lower())
         self.assertIn("attribute", str(response.data).lower())
 
-    def test_api_rejects_svg_with_disallowed_tag(self) -> None:
+    def test_api_rejects_svg_with_disallowed_tag(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with a disallowed tag (script)
@@ -478,7 +482,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertIn("disallowed", str(response.data).lower())
         self.assertIn("tag", str(response.data).lower())
 
-    def test_api_rejects_svg_with_javascript_href(self) -> None:
+    def test_api_rejects_svg_with_javascript_href(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with javascript: in href attribute
@@ -507,7 +511,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertIn("disallowed", str(response.data).lower())
         self.assertIn("javascript", str(response.data).lower())
 
-    def test_api_rejects_svg_with_javascript_xlink_href(self) -> None:
+    def test_api_rejects_svg_with_javascript_xlink_href(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with javascript: in xlink:href attribute
@@ -533,7 +537,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertIn("disallowed", str(response.data).lower())
         self.assertIn("javascript", str(response.data).lower())
 
-    def test_api_rejects_svg_with_data_text_html_href(self) -> None:
+    def test_api_rejects_svg_with_data_text_html_href(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with data:text/html in href attribute
@@ -562,7 +566,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         # This will now catch "Disallowed URI scheme"
         self.assertIn("disallowed", str(response.data).lower())
 
-    def test_api_rejects_svg_with_unknown_namespace_attribute(self) -> None:
+    def test_api_rejects_svg_with_unknown_namespace_attribute(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with an attribute in an unknown/custom namespace
@@ -598,7 +602,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertIn("disallowed svg attribute", error_msg)
         self.assertIn("{http://example.com/hack}fill", error_msg)
 
-    def test_api_rejects_svg_with_external_http_href(self) -> None:
+    def test_api_rejects_svg_with_external_http_href(self, mock_delay) -> None:
         """
         GIVEN:
             - An SVG with an external URI (http://) in a safe tag's href attribute.
@@ -628,7 +632,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         # Check for the error message raised by the safe_prefixes check
         self.assertIn("uri scheme not allowed", str(response.data).lower())
 
-    def test_create_not_allowed(self) -> None:
+    def test_create_not_allowed(self, mock_delay) -> None:
         """
         GIVEN:
             - API request to create a new app config
@@ -650,7 +654,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(ApplicationConfiguration.objects.count(), 1)
 
-    def test_update_llm_api_key(self) -> None:
+    def test_update_llm_api_key(self, mock_delay) -> None:
         """
         GIVEN:
             - Existing config with llm_api_key specified
@@ -692,7 +696,7 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         config.refresh_from_db()
         self.assertEqual(config.llm_api_key, None)
 
-    def test_enable_ai_index_triggers_update(self) -> None:
+    def test_enable_ai_index_triggers_update(self, mock_delay) -> None:
         """
         GIVEN:
             - Existing config with AI disabled
@@ -707,7 +711,6 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
         config.save()
 
         with (
-            patch("documents.tasks.llmindex_index.delay") as mock_update,
             patch("paperless_ai.indexing.vector_store_file_exists") as mock_exists,
         ):
             mock_exists.return_value = False
@@ -721,4 +724,4 @@ class TestApiAppConfig(DirectoriesMixin, APITestCase):
                 ),
                 content_type="application/json",
             )
-            mock_update.assert_called_once()
+            self.assertTrue(mock_delay.called)

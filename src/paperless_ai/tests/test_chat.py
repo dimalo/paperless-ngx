@@ -40,6 +40,7 @@ def mock_document():
     return doc
 
 
+@pytest.mark.django_db
 def test_stream_chat_with_one_document_full_content(mock_document) -> None:
     with (
         patch("paperless_ai.chat.AIClient") as mock_client_cls,
@@ -71,6 +72,7 @@ def test_stream_chat_with_one_document_full_content(mock_document) -> None:
         assert output == ["chunk1", "chunk2"]
 
 
+@pytest.mark.django_db
 def test_stream_chat_with_multiple_documents_retrieval(patch_embed_nodes) -> None:
     with (
         patch("paperless_ai.chat.AIClient") as mock_client_cls,
@@ -121,6 +123,7 @@ def test_stream_chat_with_multiple_documents_retrieval(patch_embed_nodes) -> Non
         assert output == ["chunk1", "chunk2"]
 
 
+@pytest.mark.django_db
 def test_stream_chat_no_matching_nodes() -> None:
     with (
         patch("paperless_ai.chat.AIClient") as mock_client_cls,
